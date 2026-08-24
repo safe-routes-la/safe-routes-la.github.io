@@ -1,0 +1,5 @@
+# Bulk source downloads (~100 MB): re-creatable with the fetch_* scripts
+.cache/
+__pycache__/
+*.pyc
+.DS_Store

@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Safe Routes to School — Los Angeles</title>
+<meta name="description" content="Risk-aware walking directions for Los Angeles students, built on 85,634 real violent-crime incidents. Routes around the streets where kids actually get hurt.">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0b0f14; --panel:#121821; --panel-2:#1a212c; --panel-3:#212a37;
+    --line:#242f3d; --line-2:#2f3d4e;
+    --ink:#eaf0f7; --ink-dim:#8fa0b6; --ink-faint:#5f6e81;
+    --safe:#35d98a; --fast:#ffb020; --danger:#ff4d5a; --accent:#5aa9ff;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:Inter,system-ui,-apple-system,sans-serif;
+    background:var(--bg); color:var(--ink); overflow:hidden;
+    -webkit-font-smoothing:antialiased;
+  }
+  #app{display:grid; grid-template-columns:390px 1fr; height:100vh}
+
+  /* ------------------------------------------------------------- sidebar */
+  #side{background:var(--panel); border-right:1px solid var(--line);
+        display:flex; flex-direction:column; min-height:0}
+
+  .brand{padding:18px 22px 14px; border-bottom:1px solid var(--line); flex:none}
+  .brand h1{font-size:18px; font-weight:800; letter-spacing:-.35px; line-height:1.15}
+  .brand h1 span{color:var(--safe)}
+  .brand p{font-size:12px; color:var(--ink-dim); margin-top:6px; line-height:1.5}
+
+  .tabs{display:flex; border-bottom:1px solid var(--line); flex:none}
+  .tab{
+    flex:1; padding:11px 6px; text-align:center; cursor:pointer;
+    font-size:12px; font-weight:600; color:var(--ink-faint);
+    border-bottom:2px solid transparent; transition:.14s; user-select:none;
+  }
+  .tab:hover{color:var(--ink-dim)}
+  .tab.on{color:var(--safe); border-bottom-color:var(--safe)}
+
+  .panes{flex:1; overflow-y:auto; min-height:0}
+  .pane{display:none} .pane.on{display:block}
+  .panes::-webkit-scrollbar{width:9px}
+  .panes::-webkit-scrollbar-thumb{background:var(--line-2); border-radius:5px}
+  .panes::-webkit-scrollbar-track{background:transparent}
+
+  .stat-strip{display:flex; gap:1px; background:var(--line); border-bottom:1px solid var(--line)}
+  .stat-strip div{flex:1; background:var(--panel); padding:11px 6px; text-align:center}
+  .stat-strip b{display:block; font-family:'JetBrains Mono',monospace;
+                font-size:15px; color:var(--safe); font-weight:600}
+  .stat-strip small{font-size:9px; color:var(--ink-faint);
+                    text-transform:uppercase; letter-spacing:.55px}
+
+  .sec{padding:16px 22px; border-bottom:1px solid var(--line)}
+  .sec:last-child{border-bottom:none}
+  .sec h2{font-size:10px; text-transform:uppercase; letter-spacing:1.15px;
+          color:var(--ink-faint); font-weight:700; margin-bottom:11px}
+
+  label.fld{display:block; margin-bottom:11px}
+  label.fld > span{display:block; font-size:11.5px; color:var(--ink-dim); margin-bottom:5px}
+  input[type=text]{
+    width:100%; background:var(--panel-2); border:1px solid var(--line);
+    color:var(--ink); padding:9px 11px; border-radius:7px;
+    font-size:13px; font-family:inherit; outline:none; transition:.14s;
+  }
+  input[type=text]:focus{border-color:var(--accent); background:var(--panel-3)}
+  input::placeholder{color:var(--ink-faint)}
+
+  .pill-row{display:flex; gap:6px}
+  .pill{
+    flex:1; text-align:center; padding:8px 4px; border-radius:7px; cursor:pointer;
+    background:var(--panel-2); border:1px solid var(--line);
+    font-size:10.5px; color:var(--ink-faint); user-select:none; transition:.14s;
+  }
+  .pill:hover{border-color:var(--line-2); color:var(--ink-dim)}
+  .pill.on{background:rgba(90,169,255,.14); border-color:var(--accent); color:#d3e8ff}
+  .pill b{display:block; font-size:12.5px; font-weight:600; margin-bottom:1px}
+  .pill.on b{color:#eaf4ff}
+
+  input[type=range]{width:100%; accent-color:var(--safe); margin:3px 0}
+  .range-ends{display:flex; justify-content:space-between; font-size:10px; color:var(--ink-faint)}
+
+  button.go{
+    width:100%; padding:11px; border:none; border-radius:8px; cursor:pointer;
+    background:var(--safe); color:#03291a; font-weight:700; font-size:13.5px;
+    font-family:inherit; transition:.14s;
+  }
+  button.go:hover:not(:disabled){filter:brightness(1.09)}
+  button.go:disabled{background:var(--panel-2); color:var(--ink-faint); cursor:not-allowed}
+
+  .hint{font-size:11px; color:var(--ink-faint); line-height:1.55; margin-top:8px}
+  .hint kbd{background:var(--panel-3); border:1px solid var(--line-2); border-radius:4px;
+            padding:1px 5px; font-family:'JetBrains Mono',monospace; font-size:10px}
+
+  /* ------------------------------------------------------------- results */
+  #results{display:none} #results.show{display:block}
+  .route-card{
+    background:var(--panel-2); border:1px solid var(--line); border-left-width:3px;
+    border-radius:8px; padding:11px 13px; margin-bottom:8px;
+  }
+  .route-card.safe{border-left-color:var(--safe)}
+  .route-card.fast{border-left-color:var(--fast)}
+  .route-card h3{font-size:12px; font-weight:600; margin-bottom:8px;
+                 display:flex; justify-content:space-between; gap:8px}
+  .route-card h3 em{font-style:normal; font-size:10.5px; color:var(--ink-faint); font-weight:400}
+  .metrics{display:flex; gap:12px}
+  .metrics div{flex:1}
+  .metrics b{display:block; font-family:'JetBrains Mono',monospace;
+             font-size:14.5px; font-weight:600}
+  .metrics small{font-size:9px; color:var(--ink-faint);
+                 text-transform:uppercase; letter-spacing:.5px}
+  .safe b{color:var(--safe)} .fast b{color:var(--fast)}
+
+  .verdict{
+    background:linear-gradient(135deg,rgba(53,217,138,.14),rgba(53,217,138,.04));
+    border:1px solid rgba(53,217,138,.28); border-radius:8px;
+    padding:11px 13px; font-size:12.5px; line-height:1.6; color:#c5f0dc;
+  }
+  .verdict b{color:var(--safe); font-family:'JetBrains Mono',monospace; font-weight:600}
+  .verdict.flat{background:rgba(255,176,32,.08); border-color:rgba(255,176,32,.25); color:#ffe0b0}
+  .verdict.flat b{color:var(--fast)}
+
+  .worst{margin-top:9px; font-size:11.5px; color:var(--ink-dim); line-height:1.6}
+  .worst b{color:var(--danger); font-weight:600}
+
+  /* ---------------------------------------------------------- about pane */
+  .prose{font-size:12.5px; line-height:1.65; color:var(--ink-dim)}
+  .prose p{margin-bottom:10px}
+  .prose strong{color:var(--ink); font-weight:600}
+  .prose code{font-family:'JetBrains Mono',monospace; font-size:11.5px;
+              background:var(--panel-3); padding:1.5px 5px; border-radius:4px; color:#cfe6ff}
+  .bignum{
+    font-family:'JetBrains Mono',monospace; font-size:30px; font-weight:600;
+    color:var(--danger); line-height:1; letter-spacing:-1px;
+  }
+  .bignum + p{margin-top:7px}
+
+  .sdg{display:flex; flex-direction:column; gap:7px}
+  .sdg-item{
+    display:flex; gap:10px; align-items:flex-start;
+    background:var(--panel-2); border:1px solid var(--line);
+    border-radius:7px; padding:9px 11px;
+  }
+  .sdg-num{
+    font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:600;
+    background:var(--accent); color:#04121f; border-radius:4px;
+    padding:2px 6px; flex:none; margin-top:1px;
+  }
+  .sdg-item div b{display:block; font-size:11.5px; color:var(--ink); margin-bottom:2px}
+  .sdg-item div span{font-size:11px; color:var(--ink-dim); line-height:1.5}
+
+  .srcs{font-size:11.5px; line-height:1.75}
+  .srcs a{color:var(--accent); text-decoration:none}
+  .srcs a:hover{text-decoration:underline}
+  .limits{font-size:11.5px; line-height:1.65; color:var(--ink-faint)}
+  .limits li{margin-bottom:7px; margin-left:15px}
+
+  /* ---------------------------------------------------------------- map */
+  #mapwrap{position:relative; min-width:0}
+  #map{position:absolute; inset:0; background:#080b10}
+  .leaflet-container{background:#080b10; font-family:inherit}
+  .leaflet-control-attribution{
+    background:rgba(11,15,20,.82)!important; color:var(--ink-faint)!important;
+    font-size:10px!important;
+  }
+  .leaflet-control-attribution a{color:var(--ink-dim)!important}
+
+  #legend{
+    position:absolute; right:14px; bottom:22px; z-index:600;
+    background:rgba(18,24,33,.93); backdrop-filter:blur(10px);
+    border:1px solid var(--line); border-radius:9px; padding:11px 13px;
+    font-size:11px; color:var(--ink-dim); min-width:158px;
+  }
+  #legend h4{font-size:9px; text-transform:uppercase; letter-spacing:.85px;
+             color:var(--ink-faint); margin-bottom:8px; font-weight:700}
+  #legend h4 span{color:var(--accent)}
+  .lg{display:flex; align-items:center; gap:8px; margin-bottom:5px}
+  .lg i{width:18px; height:3px; border-radius:2px; display:block; flex:none}
+  .lg i.dash{background:repeating-linear-gradient(90deg,var(--fast) 0 3px,transparent 3px 6px)}
+  .ramp{height:8px; border-radius:4px; margin:7px 0 4px;
+        background:linear-gradient(90deg,#1f6f4a,#8fbf3f,#ffb020,#ff6b35,#ff2d2d)}
+  .ramp-ends{display:flex; justify-content:space-between; font-size:9px; color:var(--ink-faint)}
+
+  #zoomhint{
+    position:absolute; left:50%; bottom:22px; transform:translateX(-50%); z-index:600;
+    background:rgba(18,24,33,.93); border:1px solid var(--line); border-radius:20px;
+    padding:6px 15px; font-size:11.5px; color:var(--ink-dim); display:none;
+  }
+  #zoomhint.show{display:block}
+
+  #loading{
+    position:absolute; inset:0; z-index:900; background:rgba(11,15,20,.97);
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:13px;
+  }
+  #loading.done{display:none}
+  .spin{width:32px; height:32px; border:3px solid var(--line);
+        border-top-color:var(--safe); border-radius:50%; animation:sp .8s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  #loading p{font-size:13px; color:var(--ink-dim)}
+  #loading small{font-size:11px; color:var(--ink-faint)}
+
+  .marker-pin{width:15px;height:15px;border-radius:50%;border:2.5px solid #fff;
+              box-shadow:0 0 0 2px rgba(0,0,0,.55), 0 2px 9px rgba(0,0,0,.65)}
+  .toast{
+    position:absolute; top:14px; left:50%; transform:translateX(-50%); z-index:800;
+    background:rgba(255,77,90,.95); color:#fff; padding:9px 17px; border-radius:8px;
+    font-size:12.5px; font-weight:500; display:none; box-shadow:0 4px 18px rgba(0,0,0,.4);
+  }
+  .toast.show{display:block}
+
+  @media (max-width:880px){
+    #app{grid-template-columns:1fr; grid-template-rows:minmax(0,46vh) 1fr}
+    #side{border-right:none; border-bottom:1px solid var(--line)}
+    #legend{right:10px; bottom:14px; min-width:0; padding:9px 11px}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <aside id="side">
+    <div class="brand">
+      <h1>Safe Routes <span>to School</span></h1>
+      <p>Walking directions for Los Angeles students that route around the
+         streets where kids actually get hurt — not just the shortest way.</p>
+    </div>
+
+    <div class="tabs">
+      <div class="tab on" data-p="route">Route</div>
+      <div class="tab" data-p="why">Why it matters</div>
+      <div class="tab" data-p="how">How it works</div>
+    </div>
+
+    <div class="panes">
+      <!-- ------------------------------------------------------- ROUTE -->
+      <div class="pane on" id="p-route">
+        <div class="stat-strip">
+          <div><b id="s-schools">—</b><small>Schools</small></div>
+          <div><b id="s-blocks">—</b><small>Blocks scored</small></div>
+          <div><b id="s-crimes">—</b><small>Incidents</small></div>
+        </div>
+
+        <div class="sec">
+          <h2>Trip</h2>
+          <label class="fld">
+            <span>School</span>
+            <input type="text" id="school" list="schoollist"
+                   placeholder="Start typing a school name…" autocomplete="off">
+            <datalist id="schoollist"></datalist>
+          </label>
+          <label class="fld" style="margin-bottom:6px">
+            <span>Starting point</span>
+            <input type="text" id="origin" placeholder="Click the map to drop a pin" readonly>
+          </label>
+          <p class="hint">Click the map to set where the walk begins.
+             <kbd>Shift</kbd>+click sets a custom destination instead.</p>
+        </div>
+
+        <div class="sec">
+          <h2>When is the walk?</h2>
+          <div class="pill-row" id="timepills">
+            <div class="pill on" data-b="0"><b>Morning</b>to school</div>
+            <div class="pill" data-b="1"><b>Afternoon</b>walking home</div>
+            <div class="pill" data-b="2"><b>After dark</b>evening</div>
+          </div>
+        </div>
+
+        <div class="sec">
+          <h2>How much detour is worth it?</h2>
+          <input type="range" id="lam" min="0" max="100" value="55">
+          <div class="range-ends"><span>Shortest walk</span><span>Safest walk</span></div>
+          <button class="go" id="go" style="margin-top:14px" disabled>Find the safest route</button>
+        </div>
+
+        <div class="sec" id="results">
+          <h2>Result</h2>
+          <div class="route-card safe">
+            <h3><span>Safest route</span><em id="r-safe-note"></em></h3>
+            <div class="metrics">
+              <div><b id="safe-dist">—</b><small>Distance</small></div>
+              <div><b id="safe-time">—</b><small>Walk time</small></div>
+              <div><b id="safe-risk">—</b><small>Risk / 100 m</small></div>
+            </div>
+          </div>
+          <div class="route-card fast">
+            <h3><span>Shortest route</span><em>what a map app gives you</em></h3>
+            <div class="metrics">
+              <div><b id="fast-dist">—</b><small>Distance</small></div>
+              <div><b id="fast-time">—</b><small>Walk time</small></div>
+              <div><b id="fast-risk">—</b><small>Risk / 100 m</small></div>
+            </div>
+          </div>
+          <div class="verdict" id="verdict"></div>
+          <div class="worst" id="worst"></div>
+        </div>
+
+        <div class="sec">
+          <h2>Map layers</h2>
+          <div class="pill-row">
+            <div class="pill on" id="t-risk">Risk heatmap</div>
+            <div class="pill" id="t-schools">All schools</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- --------------------------------------------------------- WHY -->
+      <div class="pane" id="p-why">
+        <div class="sec">
+          <h2>The number this is built on</h2>
+          <div class="bignum">1,026</div>
+          <p class="prose" style="margin-top:7px">
+            Children aged 10–18 robbed on the streets of Los Angeles
+            <strong>during school commute hours</strong> between 2020 and 2024.
+            That is <strong>56% of all 1,838 robberies of kids in that age
+            range</strong> — more than half, concentrated into about five hours
+            of the day.
+          </p>
+          <p class="prose">
+            It is not random. It repeats, and it repeats in specific places that
+            are already in the public record. Nobody routes around them.
+          </p>
+        </div>
+
+        <div class="sec">
+          <h2>Why this is a transportation problem</h2>
+          <p class="prose">
+            The federal <strong>Safe Routes to School</strong> program has
+            existed since 1971 and is almost entirely about cars — crosswalks,
+            speed bumps, crossing guards. But ask an LA teenager what they are
+            actually afraid of on the walk home and they will not say traffic.
+          </p>
+          <p class="prose">
+            Walking is the most basic mode of transport there is, and for a lot
+            of students it is the only one they have. When the walk stops
+            feeling safe, kids stop walking — which pushes them into cars, onto
+            worse schedules, or into missing school entirely. Making the walk
+            safer <em>is</em> transportation work.
+          </p>
+        </div>
+
+        <div class="sec">
+          <h2>UN Sustainable Development Goals</h2>
+          <div class="sdg">
+            <div class="sdg-item"><span class="sdg-num">11</span><div>
+              <b>Sustainable Cities &amp; Communities</b>
+              <span>Target 11.2 — safe, accessible transport for all, with
+              attention to children. Target 11.7 — safe public spaces.</span>
+            </div></div>
+            <div class="sdg-item"><span class="sdg-num">4</span><div>
+              <b>Quality Education</b>
+              <span>Target 4.a — safe learning environments. A commute a child
+              is afraid to make is a barrier to attending school at all.</span>
+            </div></div>
+            <div class="sdg-item"><span class="sdg-num">16</span><div>
+              <b>Peace, Justice &amp; Strong Institutions</b>
+              <span>Target 16.2 — end violence against children, using the
+              public data institutions already publish.</span>
+            </div></div>
+            <div class="sdg-item"><span class="sdg-num">10</span><div>
+              <b>Reduced Inequalities</b>
+              <span>The students with no car and no ride are the ones exposed
+              to this risk. They are the ones this routes for.</span>
+            </div></div>
+          </div>
+        </div>
+
+        <div class="sec">
+          <h2>Why it scales globally</h2>
+          <p class="prose">
+            Nothing here is specific to Los Angeles except one bounding box in
+            <code>config.py</code>. The pipeline needs three public inputs:
+            geocoded incident reports, school locations, and OpenStreetMap —
+            and OSM already covers the entire planet.
+          </p>
+          <p class="prose">
+            Hundreds of cities publish compatible open incident data on Socrata
+            and ArcGIS portals, including <strong>Chicago, New York, Seattle,
+            Denver, Austin, Baltimore, Toronto and London</strong>. Pointing
+            this at any of them is a configuration change, not a rewrite. There
+            is no backend and no per-user cost, so a city can stand up its own
+            copy for the price of static hosting: nothing.
+          </p>
+        </div>
+      </div>
+
+      <!-- --------------------------------------------------------- HOW -->
+      <div class="pane" id="p-how">
+        <div class="sec">
+          <h2>Data</h2>
+          <p class="srcs">
+            <a href="https://data.lacity.org/Public-Safety/Crime-Data-from-2020-to-Present/2nrs-mtv8" target="_blank" rel="noopener">LAPD Crime Data 2020–2024</a> — 85,634 incidents<br>
+            <a href="https://maps.lacity.org/lahub/rest/services/Bureau_of_Street_Lighting/MapServer" target="_blank" rel="noopener">LA Bureau of Street Lighting</a> — 128,534 lamps<br>
+            <a href="https://www.cde.ca.gov/ds/si/ds/pubschls.asp" target="_blank" rel="noopener">CA Dept. of Education</a> — 668 schools<br>
+            <a href="https://www.openstreetmap.org" target="_blank" rel="noopener">OpenStreetMap</a> — walkable street network
+          </p>
+        </div>
+
+        <div class="sec">
+          <h2>What we filter out, and why</h2>
+          <p class="prose">
+            The raw LAPD feed has roughly a million records. We keep only
+            incidents that describe a threat to someone <strong>walking down a
+            street</strong> — robbery, assault, ADW, criminal threats,
+            brandishing. Property crime and fraud are dropped: a stolen
+            catalytic converter says nothing about whether a child is safe.
+          </p>
+          <p class="prose">
+            Then a <strong>premise filter</strong> keeps only street, sidewalk,
+            alley, bus stop, park and underpass. This drops about
+            <strong>81,000</strong> incidents that happened indoors. Domestic
+            violence is real and serious, but it is not a walking-route hazard,
+            and including it would systematically mislabel dense residential
+            neighbourhoods as dangerous to walk through.
+          </p>
+        </div>
+
+        <div class="sec">
+          <h2>The risk model</h2>
+          <p class="prose">
+            Each surviving incident is weighted
+            <code>severity × juvenile × recency</code>. Armed robbery counts
+            2.5×, assault with a deadly weapon 3×, a verbal threat 1×. Recency
+            decays exponentially on a 2.5-year half-life.
+          </p>
+          <p class="prose">
+            <strong>Crimes against children count triple.</strong> A crime
+            against a 13-year-old predicts danger to a 13-year-old far better
+            than a crime against an adult does — that weighting is the single
+            biggest thing separating this from a generic crime map.
+          </p>
+          <p class="prose">
+            Incidents are split into three time buckets and spread as
+            <strong>Gaussian kernels</strong> with a 120 m bandwidth, chosen to
+            match the block-level uncertainty in LAPD's geocoding rather than
+            to imply precision we do not have. Every block is sampled every
+            25 m, then rank-normalised — so <code>0.9</code> means "worse than
+            90% of blocks in LA."
+          </p>
+          <p class="prose">
+            Streetlight density earns a block up to a 35% reduction, capped so
+            a well-lit block in a high-crime area never reads as safe.
+            Arterials take a penalty; footpaths get a small credit.
+          </p>
+        </div>
+
+        <div class="sec">
+          <h2>The routing</h2>
+          <p class="prose">
+            Streets are cut into blocks at genuine intersections — shared OSM
+            node IDs, not rounded coordinates — and reduced to the largest
+            connected component. Routing is <strong>A*</strong> minimising:
+          </p>
+          <p class="prose" style="text-align:center">
+            <code>length × (1 + λ · risk<sup>1.5</sup>)</code>
+          </p>
+          <p class="prose">
+            λ is the slider. The <code>1.5</code> exponent tolerates
+            mildly-elevated blocks while avoiding genuinely bad ones hard; a
+            linear penalty gives mushy routes that dodge everything slightly
+            and nothing much.
+          </p>
+          <p class="prose">
+            Because every edge multiplier is at least 1, straight-line distance
+            never overestimates the remaining cost — the heuristic is
+            <strong>admissible</strong>, so the route returned is provably
+            optimal, not approximate. It all runs in your browser: the graph is
+            precomputed offline, so there is no server to pay for.
+          </p>
+        </div>
+
+        <div class="sec">
+          <h2>Honest limitations</h2>
+          <ul class="limits">
+            <li><strong>Reported crime is not all crime.</strong> Reporting
+                rates vary by neighbourhood and immigration status, so a low
+                score can partly reflect low reporting.</li>
+            <li><strong>Locations are block-level.</strong> LAPD rounds
+                coordinates for privacy; the 120 m bandwidth matches that
+                uncertainty.</li>
+            <li><strong>Data ends December 2024</strong>, when LAPD migrated to
+                NIBRS. Complete and stable, but not live.</li>
+            <li><strong>Risk is relative to LA.</strong> A 0.2 means "quiet by
+                LA standards," not "quiet."</li>
+            <li><strong>This is a second opinion, not a guarantee.</strong> An
+                empty street the model likes may still be worse than a busy one
+                it doesn't.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <div id="mapwrap">
+    <div id="map"></div>
+    <div class="toast" id="toast"></div>
+    <div id="zoomhint">Zoom in to see the risk heatmap</div>
+    <div id="legend">
+      <h4>Street risk — <span id="lg-time">morning</span></h4>
+      <div class="ramp"></div>
+      <div class="ramp-ends"><span>elevated</span><span>worst in LA</span></div>
+      <div style="font-size:10px;color:var(--ink-faint);margin-top:3px">
+        <span id="lg-count">—</span> blocks above the safe baseline
+      </div>
+      <div style="height:9px"></div>
+      <div class="lg"><i style="background:var(--safe)"></i> Safest route</div>
+      <div class="lg"><i class="dash"></i> Shortest route</div>
+    </div>
+    <div id="loading">
+      <div class="spin"></div>
+      <p id="load-msg">Loading the street network…</p>
+      <small id="load-sub">85,634 incidents · 128,534 streetlights</small>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

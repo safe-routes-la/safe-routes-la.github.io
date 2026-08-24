@@ -1,0 +1,26 @@
+{
+ "buckets": [
+  "am",
+  "pm",
+  "night"
+ ],
+ "bucket_hours": [
+  5.0,
+  7.0,
+  12.0
+ ],
+ "nodes": 297465,
+ "edges": 431599,
+ "geom": 27000,
+ "crimes": 85634,
+ "lights": 128534,
+ "bandwidth_m": 120.0,
+ "km": 18473.0,
+ "schools": null,
+ "bbox": {
+  "south": 33.92,
+  "west": -118.5,
+  "north": 34.14,
+  "east": -118.18
+ }
+}
