@@ -21,6 +21,8 @@ const RISK_ZOOM = 13;           // below this the heatmap is noise
 const RISK_FLOOR_BY_ZOOM = { 13: 0.60, 14: 0.50, 15: 0.42, 16: 0.36 };
 const riskFloor = z => RISK_FLOOR_BY_ZOOM[Math.min(16, Math.max(13, z))];
 
+const MAGIC = 0x53525453;   // "SRTS" — first 4 bytes of graph.bin
+
 const S = {
   meta: null, schools: null,
   nLat: null, nLon: null,                  // node coords
@@ -128,7 +130,7 @@ class Heap {
  * alignment means every view lands on a natural boundary with no padding. */
 function decode(buf) {
   const h = new Uint32Array(buf, 0, 5);
-  if (h[0] !== 0x53525453) throw new Error('bad graph file (magic mismatch)');
+  if (h[0] !== MAGIC) throw new Error('bad graph file (magic mismatch)');
   if (h[1] !== 1) throw new Error(`unsupported graph version ${h[1]}`);
   const nN = h[2], nE = h[3], nG = h[4];
   let o = 20;
@@ -510,20 +512,33 @@ $('t-schools').addEventListener('click', e => {
  * actually waiting on. Falls back to the raw file on older browsers. */
 async function fetchGraph(onPct) {
   if (typeof DecompressionStream === 'function') {
-    const res = await fetch('data/graph.bin.gz');
-    if (res.ok && res.body) {
-      const total = +(res.headers.get('content-length') || 0);
-      let got = 0;
-      const counter = new TransformStream({
-        transform(chunk, ctrl) {
-          got += chunk.length;
-          if (total) onPct(got / total, got, total);
-          ctrl.enqueue(chunk);
-        },
-      });
-      return new Response(
-        res.body.pipeThrough(counter).pipeThrough(new DecompressionStream('gzip'))
-      ).arrayBuffer();
+    try {
+      const res = await fetch('data/graph.bin.gz');
+      if (res.ok && res.body) {
+        const total = +(res.headers.get('content-length') || 0);
+        let got = 0;
+        const counter = new TransformStream({
+          transform(chunk, ctrl) {
+            got += chunk.length;
+            if (total) onPct(got / total, got, total);
+            ctrl.enqueue(chunk);
+          },
+        });
+        const buf = await new Response(
+          res.body.pipeThrough(counter)
+                  .pipeThrough(new DecompressionStream('gzip'))
+        ).arrayBuffer();
+        // A host that sets Content-Encoding: gzip makes the browser inflate the
+        // body for us, so inflating a second time yields garbage rather than
+        // throwing. Verify the magic before trusting it, and fall through if
+        // it is wrong.
+        if (buf.byteLength > 20 && new Uint32Array(buf, 0, 1)[0] === MAGIC) {
+          return buf;
+        }
+        console.warn('inflated graph failed its magic check; using graph.bin');
+      }
+    } catch (e) {
+      console.warn('gzip path unavailable, falling back to graph.bin', e);
     }
   }
   const res = await fetch('data/graph.bin');

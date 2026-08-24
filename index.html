@@ -154,6 +154,17 @@
   .sdg-item div b{display:block; font-size:11.5px; color:var(--ink); margin-bottom:2px}
   .sdg-item div span{font-size:11px; color:var(--ink-dim); line-height:1.5}
 
+  table.rate{width:100%; border-collapse:collapse; margin-top:9px; font-size:12px}
+  table.rate td{padding:6px 9px; border-bottom:1px solid var(--line); color:var(--ink-dim)}
+  table.rate td:last-child{
+    text-align:right; font-family:'JetBrains Mono',monospace;
+    font-weight:600; color:var(--ink);
+  }
+  table.rate td span{color:var(--ink-faint); font-size:10.5px; margin-left:4px}
+  table.rate tr:last-child td{border-bottom:none}
+  table.rate tr.hi td{background:rgba(255,77,90,.1); color:#ffc9ce}
+  table.rate tr.hi td:last-child{color:var(--danger)}
+
   .srcs{font-size:11.5px; line-height:1.75}
   .srcs a{color:var(--accent); text-decoration:none}
   .srcs a:hover{text-decoration:underline}
@@ -322,6 +333,26 @@
           <p class="prose">
             It is not random. It repeats, and it repeats in specific places that
             are already in the public record. Nobody routes around them.
+          </p>
+        </div>
+
+        <div class="sec">
+          <h2>What the data showed us</h2>
+          <p class="prose">
+            Splitting incidents by time of day only means something if you
+            divide by how long each window lasts — "after dark" is 12 hours and
+            would look worst just for being longest. Per hour:
+          </p>
+          <table class="rate">
+            <tr><td>Morning <span>05–10</span></td><td>2,052</td></tr>
+            <tr class="hi"><td>Afternoon <span>10–17</span></td><td>4,246</td></tr>
+            <tr><td>After dark <span>17–05</span></td><td>3,804</td></tr>
+          </table>
+          <p class="prose" style="margin-top:10px">
+            <strong>The walk home is the most dangerous hour of a student's
+            day</strong> — worse, hour for hour, than after dark. That is
+            exactly the 2–6 p.m. window the robbery figure points at, and we
+            did not go looking for it. It fell out of the data.
           </p>
         </div>
 

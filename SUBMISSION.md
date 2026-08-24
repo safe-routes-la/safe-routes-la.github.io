@@ -78,8 +78,12 @@ The same pipeline runs on any city that publishes geocoded incident data.
 ## Video link
 `<fill in — check sharing is set to "anyone with the link">`
 
+Script and shot list: see VIDEO.md
+
 ## Code link
-`<fill in — GitHub repo URL, set to Public>`
+https://github.com/adrian-erlikhman/safe-routes-to-school
+
+(Public. Live site: https://adrianerlikhman.is-a.dev/safe-routes-to-school/)
 
 ## Parental consent
 Yes

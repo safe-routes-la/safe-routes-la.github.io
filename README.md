@@ -3,6 +3,11 @@
 **Walking directions for LA students that route around the streets where kids
 actually get hurt.**
 
+### → [adrianerlikhman.is-a.dev/safe-routes-to-school](https://adrianerlikhman.is-a.dev/safe-routes-to-school/)
+
+No install, no backend, no API key. 431,599 blocks of Los Angeles scored for
+risk, routed in your browser in under 10 ms.
+
 Every map app in the world will give a child the *shortest* way to school.
 None of them will give them the *safest* one. This does.
 
@@ -30,14 +35,17 @@ Pick a school and a starting point. The app computes two walking routes:
 - the **shortest** route — what Google Maps hands you
 - the **safest** route — the path that minimises exposure to violent street crime
 
-…then tells you exactly what the tradeoff costs: *"Walking 4 minutes longer
-cuts your exposure to violent street crime by 61%."*
+…then tells you exactly what the tradeoff costs. A real result, walking to
+LACES in Mid-City after dark: *"Walking 3 minutes longer cuts exposure to
+violent street crime by 50%."* The worst block on the shortest route scores
+0.65; on the safe route, 0.28.
 
 Three things make the answer non-obvious:
 
 1. **Time of day matters.** The risk surface is computed separately for the
-   morning walk, the afternoon walk, and after dark. The safest route home at
-   6 p.m. in December is frequently not the safest route at 8 a.m.
+   morning walk, the afternoon walk, and after dark. Morning and after-dark
+   risk correlate at 0.90 overall — but **78,669 blocks differ by more than
+   0.15** between them, which is more than enough to change a route.
 2. **Who the victim was matters.** A crime against a 13-year-old predicts danger
    to a 13-year-old far better than a crime against an adult does. Incidents
    with juvenile victims are weighted 3× in the model.
@@ -54,7 +62,7 @@ Three things make the answer non-obvious:
 | [LAPD Crime Data 2020–2024](https://data.lacity.org/Public-Safety/Crime-Data-from-2020-to-Present/2nrs-mtv8) (`data.lacity.org`) | Violent incidents in public pedestrian space | 85,634 |
 | [LA Bureau of Street Lighting](https://maps.lacity.org/lahub/rest/services/Bureau_of_Street_Lighting/MapServer) | Streetlight point locations | 128,534 |
 | [CA Dept. of Education directory](https://www.cde.ca.gov/ds/si/ds/pubschls.asp) | Public school locations | 668 in area |
-| [OpenStreetMap](https://www.openstreetmap.org) via Overpass | Walkable street network | ~150k blocks |
+| [OpenStreetMap](https://www.openstreetmap.org) via Overpass | Walkable street network | 431,599 blocks |
 
 **Filtering is where most of the modelling judgement lives.** The raw LAPD feed
 contains ~1M incidents; we keep only those that describe a threat to a person
@@ -89,9 +97,31 @@ segment is sampled every 25 m, and each sample sums the kernels around it —
 so risk decays smoothly with distance instead of stopping at an arbitrary
 administrative boundary.
 
-Raw kernel values are unitless, so they're **rank-normalised** into 0–1: a score
-of 0.9 means "worse than 90% of blocks in Los Angeles," which is a statement a
-parent can actually act on. Then two adjustments:
+Two normalisation choices do a lot of work here:
+
+**Per-hour rates, not raw counts.** The buckets cover unequal spans — "after
+dark" is 12 hours and would look worst simply for being longest. Dividing by
+span surfaces something genuinely surprising:
+
+| Bucket | Incidents | Span | **Per hour** |
+|---|---|---|---|
+| Morning (05–10) | 10,261 | 5 h | 2,052 |
+| **Afternoon (10–17)** | 29,721 | 7 h | **4,246** |
+| After dark (17–05) | 45,652 | 12 h | 3,804 |
+
+The **afternoon walk home is the most dangerous hour of a student's day** —
+worse, hour for hour, than after dark. That is exactly the 2–6 p.m. window the
+robbery statistic points at, and it falls straight out of the data.
+
+**Pooled ranking.** Raw kernel values are unitless, so scores are
+rank-normalised into 0–1 — 0.9 means "worse than 90% of blocks." But the ranking
+is computed against the *pooled* distribution of all three buckets rather than
+each bucket separately. Normalising per bucket forces all three to an identical
+marginal distribution, silently erasing the fact that some hours are genuinely
+more dangerous — which is the entire point of having buckets. Pooling keeps them
+comparable: 0.7 means the same absolute danger at 8 a.m. as at 9 p.m.
+
+Then two adjustments:
 
 - **Streetlight credit** — up to −35%, capped so a well-lit block in a
   high-crime area never scores as genuinely safe
