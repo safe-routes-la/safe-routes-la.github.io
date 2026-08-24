@@ -751,7 +751,9 @@ function compute(fit = true) {
       const walkRef = onFoot[onFoot.length - 1];
       opts = rides.slice(0, 3).map(o => ({
         ...o,
-        label: `${o.isRail ? 'Rail' : 'Route'} ${o.routeLabel}`,
+        // Rail lines already read as names ("Metro E Line"), so only bus
+        // numbers need the word Route in front of them.
+        label: /line/i.test(o.routeLabel) ? o.routeLabel : `Route ${o.routeLabel}`,
         hint: `${Math.round(o.rideMin)} min riding, ${fmtM(o.dist)} on foot`
             + (o.xfer ? ', one change' : ''),
       }));
