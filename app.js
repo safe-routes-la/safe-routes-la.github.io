@@ -1,37 +1,45 @@
-/* Safe Routes to School — client-side risk-aware pedestrian routing.
+/* Safe Routes to School / Los Angeles
  *
- * The whole model runs in the browser. The pipeline ships a packed binary
- * graph where every block already carries a risk score per time-of-day
- * bucket, and A* here minimises  length * (1 + lambda * risk^1.5)  rather
- * than plain length.
+ * Everything runs in the browser. The pipeline ships a packed binary graph
+ * where each block already carries a risk score per time-of-day window, and
+ * A* here minimises  length * (1 + lambda * risk^1.5)  instead of length.
  */
 'use strict';
 
-const WALK_MPS = 1.32;          // ~3 mph, an unhurried kid
-const MAX_DRAW_EDGES = 22000;   // viewport cull budget for the heatmap
-const RISK_ZOOM = 13;           // below this the heatmap is noise
+const MAGIC = 0x53525453;        // "SRTS"
+const NO_NAME = 0xFFFF;
+const WALK_MPS = 1.32;           // about 3 mph, an unhurried kid
+const MAX_DRAW = 22000;          // viewport budget for the risk layer
+const NOMINATIM = 'https://nominatim.openstreetmap.org/search';
 
-/* Most streets in LA are ordinary, so colouring all of them paints a uniform
- * mesh and hides the blocks that actually matter. Draw only the top end, and
- * stretch the colour ramp across that band instead of across all of 0..1.
+/* Named options rather than a slider. A slider invites fiddling and never says
+ * what its ends mean, while a route you can point at is a choice you can make.
  *
- * The threshold rises as you zoom out: a citywide view showing every
- * above-average block is an unreadable smear, so a wide view shows only real
- * hotspots and detail fills in as you zoom toward a single walk. */
-const RISK_FLOOR_BY_ZOOM = { 13: 0.60, 14: 0.50, 15: 0.42, 16: 0.36 };
-const riskFloor = z => RISK_FLOOR_BY_ZOOM[Math.min(16, Math.max(13, z))];
+ * A fixed pair of lambdas often returns the same path twice, because past some
+ * threshold the search has already routed around everything it can. So walk a
+ * ladder, throw away duplicates, and offer only the options that differ. */
+const LADDER = [0, 0.5, 1, 1.75, 2.75, 4.25, 7];
 
-const MAGIC = 0x53525453;   // "SRTS" — first 4 bytes of graph.bin
+const WINDOWS = ['morning', 'afternoon', 'evening'];
+const WINDOW_CLOCK = ['5am to 10am', '10am to 5pm', '5pm to 5am'];
+const COMPASS = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE',
+                 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+
+/* Zoomed out, drawing every above-average block is an unreadable smear, so the
+ * threshold rises with distance and detail fills in as you approach one walk. */
+const FLOOR_BY_ZOOM = { 13: 0.60, 14: 0.50, 15: 0.42, 16: 0.36 };
+const floorFor = z => FLOOR_BY_ZOOM[Math.min(16, Math.max(13, z))];
 
 const S = {
-  meta: null, schools: null,
-  nLat: null, nLon: null,                  // node coords
-  eu: null, ev: null, ed: null, er: null,  // edge arrays
-  gOff: null, gPts: null,                  // packed shape points
-  head: null, to: null, eidx: null,        // CSR adjacency
+  meta: null, schools: null, names: null,
+  nLat: null, nLon: null,
+  eu: null, ev: null, ed: null, er: null, ename: null,
+  gOff: null, gPts: null,
+  head: null, to: null, eidx: null,
   nNodes: 0, nEdges: 0,
-  bucket: 0, lambda: 0.55,
+  bucket: 1, pick: 2,
   origin: null, school: null,
+  routes: null,
   showRisk: true, showSchools: false,
 };
 
@@ -39,53 +47,50 @@ const S = {
 const map = L.map('map', { zoomControl: false, preferCanvas: true })
   .setView([34.035, -118.33], 13);
 L.control.zoom({ position: 'bottomleft' }).addTo(map);
-L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
-  attribution: '&copy; OpenStreetMap &copy; CARTO · crime data: LAPD via data.lacity.org',
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png', {
+  attribution: '&copy; OpenStreetMap &copy; CARTO / crime records: LAPD via data.lacity.org',
   maxZoom: 19, subdomains: 'abcd',
 }).addTo(map);
-L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png', {
-  maxZoom: 19, subdomains: 'abcd', pane: 'shadowPane', opacity: .85,
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png', {
+  maxZoom: 19, subdomains: 'abcd', pane: 'shadowPane',
 }).addTo(map);
 
 const riskLayer = L.layerGroup().addTo(map);
 const routeLayer = L.layerGroup().addTo(map);
+const spokeLayer = L.layerGroup().addTo(map);
 const pinLayer = L.layerGroup().addTo(map);
 const schoolLayer = L.layerGroup();
 
 /* ------------------------------------------------------------ utilities */
 const $ = id => document.getElementById(id);
-const fmtKm = m => m < 950 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(2)} km`;
+const fmtM = m => m < 950 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(2)} km`;
 const fmtMin = m => `${Math.max(1, Math.round(m / WALK_MPS / 60))} min`;
+const risk = (ei, b) => S.er[ei * 3 + b] / 255;
+const streetName = ei => (S.ename[ei] === NO_NAME ? null : S.names[S.ename[ei]]);
 
 function toast(msg) {
   const t = $('toast');
   t.textContent = msg; t.classList.add('show');
-  clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 3400);
+  clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 3600);
 }
 
-// Green -> yellow -> red ramp for the risk surface.
-const RAMP = [[0, 31, 111, 74], [.35, 143, 191, 63], [.6, 255, 176, 32],
-              [.8, 255, 107, 53], [1, 255, 45, 45]];
-function riskColor(r) {
-  for (let i = 1; i < RAMP.length; i++) {
-    if (r <= RAMP[i][0]) {
-      const a = RAMP[i - 1], b = RAMP[i];
-      const t = (r - a[0]) / (b[0] - a[0] || 1);
-      return `rgb(${Math.round(a[1] + t * (b[1] - a[1]))},`
-           + `${Math.round(a[2] + t * (b[2] - a[2]))},`
-           + `${Math.round(a[3] + t * (b[3] - a[3]))})`;
-    }
-  }
-  return 'rgb(255,45,45)';
-}
+/* Five flat steps rather than a smooth ramp, so the legend and the map agree
+ * and a colour always maps back to a readable band. */
+const BANDS = [
+  { upto: 0.20, hex: '#3c7a4e' },
+  { upto: 0.40, hex: '#7d9b3f' },
+  { upto: 0.60, hex: '#c8912b' },
+  { upto: 0.80, hex: '#c8622b' },
+  { upto: 1.01, hex: '#a52714' },
+];
+const bandColor = v => (BANDS.find(b => v <= b.upto) || BANDS[4]).hex;
 
-const risk = (ei, b) => S.er[ei * 3 + b] / 255;
+const metres = (aLat, aLon, bLat, bLon) =>
+  Math.hypot((aLon - bLon) * 92500, (aLat - bLat) * 111320);
 
 /* --------------------------------------------------------- binary heap */
 class Heap {
-  constructor(cap) {
-    this.k = new Float64Array(cap); this.v = new Int32Array(cap); this.n = 0;
-  }
+  constructor(cap) { this.k = new Float64Array(cap); this.v = new Int32Array(cap); this.n = 0; }
   get size() { return this.n; }
   push(key, val) {
     if (this.n === this.k.length) this._grow();
@@ -117,23 +122,21 @@ class Heap {
     const tv = this.v[a]; this.v[a] = this.v[b]; this.v[b] = tv;
   }
   _grow() {
-    const k = new Float64Array(this.k.length * 2);
-    const v = new Int32Array(this.v.length * 2);
-    k.set(this.k); v.set(this.v);
-    this.k = k; this.v = v;
+    const k = new Float64Array(this.k.length * 2), v = new Int32Array(this.v.length * 2);
+    k.set(this.k); v.set(this.v); this.k = k; this.v = v;
   }
 }
 
 /* ------------------------------------------------------- binary decode */
 /* Section order mirrors the writer: header, nodes(i32), eu(i32), ev(i32),
- * geomOff(u32), geomPts(i32), d(u16), r(u8). Ordering by descending
- * alignment means every view lands on a natural boundary with no padding. */
+ * geomOff(u32), geomPts(i32), d(u16), name(u16), risk(u8). Ordering by
+ * descending alignment means each view lands on a natural boundary. */
 function decode(buf) {
-  const h = new Uint32Array(buf, 0, 5);
-  if (h[0] !== MAGIC) throw new Error('bad graph file (magic mismatch)');
-  if (h[1] !== 1) throw new Error(`unsupported graph version ${h[1]}`);
+  const h = new Uint32Array(buf, 0, 6);
+  if (h[0] !== MAGIC) throw new Error('not a graph file');
+  if (h[1] !== 2) throw new Error(`graph format v${h[1]} is not supported`);
   const nN = h[2], nE = h[3], nG = h[4];
-  let o = 20;
+  let o = 24;
 
   const nll = new Int32Array(buf, o, nN * 2); o += nN * 8;
   S.eu = new Int32Array(buf, o, nE); o += nE * 4;
@@ -141,9 +144,10 @@ function decode(buf) {
   S.gOff = new Uint32Array(buf, o, nE + 1); o += (nE + 1) * 4;
   S.gPts = new Int32Array(buf, o, nG * 2); o += nG * 8;
   S.ed = new Uint16Array(buf, o, nE); o += nE * 2;
+  S.ename = new Uint16Array(buf, o, nE); o += nE * 2;
   S.er = new Uint8Array(buf, o, nE * 3);
 
-  // Float coords once, up front: A* touches these millions of times.
+  // Floats once, up front: A* touches these millions of times.
   S.nLat = new Float64Array(nN);
   S.nLon = new Float64Array(nN);
   for (let i = 0; i < nN; i++) {
@@ -159,8 +163,7 @@ function buildAdjacency() {
   for (let i = 0; i < nE; i++) { head[S.eu[i] + 1]++; head[S.ev[i] + 1]++; }
   for (let i = 0; i < nN; i++) head[i + 1] += head[i];
   const cur = head.slice(0, nN);
-  const to = new Int32Array(nE * 2);
-  const eidx = new Int32Array(nE * 2);
+  const to = new Int32Array(nE * 2), eidx = new Int32Array(nE * 2);
   for (let i = 0; i < nE; i++) {
     const u = S.eu[i], v = S.ev[i];
     to[cur[u]] = v; eidx[cur[u]++] = i;
@@ -169,9 +172,8 @@ function buildAdjacency() {
   S.head = head; S.to = to; S.eidx = eidx;
 }
 
-// Coarse spatial hash so snapping a click to the nearest node is instant.
 function buildIndex() {
-  const CELL = 0.004;   // ~440 m
+  const CELL = 0.004;   // about 440 m
   const idx = new Map();
   for (let i = 0; i < S.nNodes; i++) {
     const k = ((Math.floor(S.nLat[i] / CELL) & 0xffff) << 16)
@@ -186,8 +188,6 @@ function nearestNode(lat, lon) {
   const ci = Math.floor(lat / S.CELL), cj = Math.floor(lon / S.CELL);
   let best = -1, bd = Infinity, foundAt = -1;
   for (let ring = 0; ring <= 8; ring++) {
-    // Once something is found, scan one extra ring before committing: the
-    // true nearest node can sit just across a cell boundary.
     if (foundAt >= 0 && ring > foundAt + 1) break;
     for (let di = -ring; di <= ring; di++) {
       for (let dj = -ring; dj <= ring; dj++) {
@@ -195,8 +195,7 @@ function nearestNode(lat, lon) {
         const a = S.cellIdx.get((((ci + di) & 0xffff) << 16) | ((cj + dj) & 0xffff));
         if (!a) continue;
         for (const n of a) {
-          const dy = (S.nLat[n] - lat) * 111320;
-          const dx = (S.nLon[n] - lon) * 92500;
+          const dy = (S.nLat[n] - lat) * 111320, dx = (S.nLon[n] - lon) * 92500;
           const d = dx * dx + dy * dy;
           if (d < bd) { bd = d; best = n; }
         }
@@ -207,14 +206,7 @@ function nearestNode(lat, lon) {
   return best;
 }
 
-const metres = (aLat, aLon, bLat, bLon) =>
-  Math.hypot((aLon - bLon) * 92500, (aLat - bLat) * 111320);
-
 /* ------------------------------------------------------------------- A* */
-/* cost(edge) = length * (1 + lambda * risk^1.5)
- * The heuristic is straight-line distance, which never exceeds the true
- * remaining cost because every edge multiplier is >= 1 — so A* stays
- * admissible and the route it returns is genuinely optimal, not approximate. */
 function route(src, dst, lambda, bucket) {
   const n = S.nNodes;
   const g = new Float64Array(n).fill(Infinity);
@@ -256,17 +248,19 @@ function route(src, dst, lambda, bucket) {
   }
   nodes.reverse(); edges.reverse();
 
-  let dist = 0, exposure = 0, worst = -1, worstR = -1;
-  for (const ei of edges) {
-    const r = risk(ei, bucket);
-    dist += ed[ei];
-    exposure += ed[ei] * r;
-    if (r > worstR) { worstR = r; worst = ei; }
-  }
-  return { nodes, edges, dist, exposure, worstR };
+  let dist = 0, exposure = 0;
+  for (const ei of edges) { dist += ed[ei]; exposure += ed[ei] * risk(ei, bucket); }
+  return { nodes, edges, dist, exposure, score: dist ? exposure / dist * 100 : 0 };
 }
 
-/* Shape points for edge `ei`, oriented so it starts at node `from`. */
+/* Mean risk of an existing path measured in a different window, for the
+ * "same route, different hour" comparison. */
+function scoreAt(r, bucket) {
+  let e = 0, d = 0;
+  for (const ei of r.edges) { d += S.ed[ei]; e += S.ed[ei] * risk(ei, bucket); }
+  return d ? e / d * 100 : 0;
+}
+
 function edgeShape(ei, from) {
   const a = S.gOff[ei], b = S.gOff[ei + 1];
   const out = [];
@@ -286,14 +280,117 @@ function routeLatLngs(r) {
   return pts;
 }
 
+/* ----------------------------------------------------------- narrative */
+/* Group a set of edges by street name and total how much walking and how much
+ * exposure each street contributes, so the app can name what it avoided. */
+function byStreet(edgeIds, bucket) {
+  const acc = new Map();
+  for (const ei of edgeIds) {
+    const nm = streetName(ei) || ' unnamed';
+    let a = acc.get(nm);
+    if (!a) acc.set(nm, a = { name: nm, len: 0, worst: 0, weighted: 0 });
+    const r = risk(ei, bucket);
+    a.len += S.ed[ei];
+    a.worst = Math.max(a.worst, r);
+    a.weighted += S.ed[ei] * r;
+  }
+  return [...acc.values()].sort((x, y) => y.weighted - x.weighted);
+}
+
+const streetLabel = s =>
+  s.name === ' unnamed' ? 'an unnamed path' : s.name;
+
+function explain(sel, base, bucket) {
+  if (sel.edges.length === base.edges.length
+      && sel.edges.every((e, i) => e === base.edges[i])) {
+    return { same: true, html:
+      'The shortest way here is also the calmest one the model can find, so '
+      + 'there is nothing to trade off.' };
+  }
+  const selSet = new Set(sel.edges), baseSet = new Set(base.edges);
+  const avoided = byStreet(base.edges.filter(e => !selSet.has(e)), bucket);
+  const taken = byStreet(sel.edges.filter(e => !baseSet.has(e)), bucket);
+
+  const cut = base.exposure > 0
+    ? Math.round((1 - sel.exposure / base.exposure) * 100) : 0;
+  const extra = sel.dist - base.dist;
+  const mins = Math.round(extra / WALK_MPS / 60);
+
+  const parts = [];
+  if (avoided.length) {
+    const a = avoided[0];
+    parts.push(`Skips <b>${fmtM(a.len)}</b> of `
+      + `<span class="st">${streetLabel(a)}</span>, which scores `
+      + `<b>${Math.round(a.worst * 100)}</b> at this hour.`);
+  }
+  if (taken.length) {
+    const t = taken.find(x => x.name !== ' unnamed') || taken[0];
+    parts.push(`Goes along <span class="st">${streetLabel(t)}</span> instead, `
+      + `at <b>${Math.round(t.worst * 100)}</b>.`);
+  }
+  const cost = extra < 15
+    ? 'It comes out the same length.'
+    : (mins < 1
+        ? `Costs you <b>${Math.round(extra)} m</b>, under a minute of walking.`
+        : `Costs you <b>${mins} minute${mins === 1 ? '' : 's'}</b>.`);
+  parts.push(`${cost} Total exposure drops <b>${cut}%</b>.`);
+
+  return { same: false, flat: cut <= 2, html: parts.join(' ') };
+}
+
+/* Directions, as a person would give them.
+ *
+ * Walking on separately-mapped sidewalks means the raw path zigzags across
+ * junctions, producing runs of two-metre hops that are crossings rather than
+ * turns. Merge same-name neighbours, then repeatedly fold anything shorter
+ * than a block into whichever neighbour is longer, until the list stops
+ * changing. Nothing is thrown away, so the distances still sum to the route. */
+const MIN_LEG_M = 35;
+
+function mergeSameName(segs) {
+  const out = [];
+  for (const s of segs) {
+    const last = out[out.length - 1];
+    if (last && last.label === s.label) {
+      last.len += s.len;
+      last.worst = Math.max(last.worst, s.worst);
+    } else out.push({ ...s });
+  }
+  return out;
+}
+
+function turnList(r, bucket) {
+  let segs = mergeSameName(r.edges.map(ei => ({
+    label: streetName(ei) || 'unnamed path',
+    len: S.ed[ei],
+    worst: risk(ei, bucket),
+  })));
+
+  for (let pass = 0; pass < 12; pass++) {
+    if (segs.length < 2) break;
+    let k = -1;
+    for (let i = 0; i < segs.length; i++) {
+      if (segs[i].len < MIN_LEG_M && (k < 0 || segs[i].len < segs[k].len)) k = i;
+    }
+    if (k < 0) break;
+    const prev = segs[k - 1], next = segs[k + 1];
+    const host = !prev ? next : !next ? prev : (prev.len >= next.len ? prev : next);
+    host.len += segs[k].len;
+    host.worst = Math.max(host.worst, segs[k].worst);
+    segs.splice(k, 1);
+    segs = mergeSameName(segs);
+  }
+  return segs;
+}
+
 /* ------------------------------------------------------- risk heatmap */
 let drawPending = null;
 function drawRisk() {
   clearTimeout(drawPending);
-  if (!S.showRisk || !S.nNodes) { riskLayer.clearLayers(); return; }
-  const zoomedOut = map.getZoom() < RISK_ZOOM;
-  $('zoomhint').classList.toggle('show', zoomedOut && S.showRisk);
-  if (zoomedOut) { riskLayer.clearLayers(); return; }
+  if (!S.showRisk || !S.nNodes) { riskLayer.clearLayers(); $('hint').classList.remove('show'); return; }
+  const out = map.getZoom() < 13;
+  $('hint').classList.toggle('show', out);
+  if (out) { riskLayer.clearLayers(); $('lg-count').textContent = '0'; return; }
 
   drawPending = setTimeout(() => {
     riskLayer.clearLayers();
@@ -303,38 +400,32 @@ function drawRisk() {
     for (let i = 0; i < S.nEdges; i++) {
       const u = S.eu[i], v = S.ev[i];
       const la = S.nLat[u], lb = S.nLat[v];
-      if (la < s && lb < s) continue;
-      if (la > n && lb > n) continue;
+      if ((la < s && lb < s) || (la > n && lb > n)) continue;
       const lo = S.nLon[u], lob = S.nLon[v];
-      if (lo < w && lob < w) continue;
-      if (lo > e && lob > e) continue;
+      if ((lo < w && lob < w) || (lo > e && lob > e)) continue;
       picked.push(i);
     }
-    // When the viewport holds more than we can draw, show the worst blocks —
-    // those are the ones a routing decision actually turns on.
     let list = picked;
-    if (picked.length > MAX_DRAW_EDGES) {
+    if (picked.length > MAX_DRAW) {
       const bk = S.bucket;
       picked.sort((x, y) => S.er[y * 3 + bk] - S.er[x * 3 + bk]);
-      list = picked.slice(0, MAX_DRAW_EDGES);
+      list = picked.slice(0, MAX_DRAW);
     }
     const z = map.getZoom();
-    const weight = z >= 16 ? 3.6 : z >= 15 ? 2.8 : z >= 14 ? 2.0 : 1.4;
-    const floor = riskFloor(z);
-    const span = Math.max(0.05, 1 - floor);
+    const base = z >= 16 ? 3.4 : z >= 15 ? 2.6 : z >= 14 ? 1.9 : 1.3;
+    const floor = floorFor(z);
     let drawn = 0;
     for (const i of list) {
       const r = risk(i, S.bucket);
-      if (r < floor) continue;                     // keep ordinary streets quiet
-      const t = (r - floor) / span;                // 0..1 across the drawn band
+      if (r < floor) continue;
+      const t = (r - floor) / Math.max(0.05, 1 - floor);
       const u = S.eu[i];
       const line = [[S.nLat[u], S.nLon[u]]];
       for (const p of edgeShape(i, u)) line.push(p);
       line.push([S.nLat[S.ev[i]], S.nLon[S.ev[i]]]);
       L.polyline(line, {
-        color: riskColor(t), weight: weight * (0.75 + 0.55 * t),
-        opacity: 0.3 + 0.62 * t,
-        interactive: false, lineCap: 'round',
+        color: bandColor(r), weight: base * (0.8 + 0.6 * t),
+        opacity: 0.4 + 0.5 * t, interactive: false, lineCap: 'butt',
       }).addTo(riskLayer);
       drawn++;
     }
@@ -347,8 +438,8 @@ map.on('moveend zoomend', drawRisk);
 function pin(latlng, color, label) {
   return L.marker(latlng, {
     icon: L.divIcon({
-      className: '', iconSize: [15, 15], iconAnchor: [7, 7],
-      html: `<div class="marker-pin" style="background:${color}"></div>`,
+      className: '', iconSize: [13, 13], iconAnchor: [6, 6],
+      html: `<div class="pin" style="background:${color}"></div>`,
     }),
     title: label,
   });
@@ -357,157 +448,363 @@ function pin(latlng, color, label) {
 function redrawPins() {
   pinLayer.clearLayers();
   if (S.origin) {
-    pin([S.origin.lat, S.origin.lon], '#5aa9ff', 'Start')
-      .bindTooltip('Start', { direction: 'top', offset: [0, -9] }).addTo(pinLayer);
+    pin([S.origin.lat, S.origin.lon], '#211f18', 'Start')
+      .bindTooltip('Start', { direction: 'top', offset: [0, -8] }).addTo(pinLayer);
   }
   if (S.school) {
-    pin([S.school.lat, S.school.lon], '#35d98a', S.school.name)
-      .bindTooltip(S.school.name, { direction: 'top', offset: [0, -9] })
-      .addTo(pinLayer);
+    pin([S.school.lat, S.school.lon], '#3c7a4e', S.school.name)
+      .bindTooltip(S.school.name, { direction: 'top', offset: [0, -8] }).addTo(pinLayer);
   }
 }
 
 /* ------------------------------------------------------------ compute */
-function compute() {
+const sig = r => r.edges.join(',');
+
+function buildOptions(src, dst, bucket) {
+  const seen = new Map();
+  for (const lam of LADDER) {
+    const r = route(src, dst, lam, bucket);
+    if (r && !seen.has(sig(r))) seen.set(sig(r), r);
+  }
+  const all = [...seen.values()];
+  if (!all.length) return null;
+
+  const fast = all.reduce((a, b) => (b.dist < a.dist ? b : a));
+  const safe = all.reduce((a, b) => (b.exposure < a.exposure ? b : a));
+  const out = [{ r: fast, label: 'Shortest', hint: 'what a map app gives you' }];
+  if (sig(safe) === sig(fast)) return out;
+
+  // A middle option only earns its place if it buys more calm per extra metre
+  // than the safest route does. Otherwise there are honestly just two choices.
+  let mid = null, bestEff = -Infinity;
+  for (const m of all) {
+    if (sig(m) === sig(fast) || sig(m) === sig(safe)) continue;
+    const cut = fast.exposure - m.exposure;
+    if (cut <= 0) continue;
+    const eff = cut / Math.max(m.dist - fast.dist, 1);
+    if (eff > bestEff) { bestEff = eff; mid = m; }
+  }
+  if (mid) out.push({ r: mid, label: 'Balanced', hint: 'most calm per extra step' });
+  out.push({ r: safe, label: 'Safest', hint: 'lowest exposure available' });
+  return out;
+}
+
+function compute(fit = true) {
   if (!S.origin || !S.school) return;
   const src = nearestNode(S.origin.lat, S.origin.lon);
   const dst = nearestNode(S.school.lat, S.school.lon);
-  if (src < 0 || dst < 0) { toast('No walkable street found nearby.'); return; }
-  if (src === dst) { toast('Start and school are on the same block.'); return; }
+  if (src < 0 || dst < 0) { toast('No walkable street near that point.'); return; }
+  if (src === dst) { toast('That start point is already at the school.'); return; }
 
-  const t0 = performance.now();
-  const lam = S.lambda * 7;               // slider 0..1 -> detour tolerance
-  const safe = route(src, dst, lam, S.bucket);
-  const fast = route(src, dst, 0, S.bucket);
-  const ms = performance.now() - t0;
-  if (!safe || !fast) { toast('No walking route found between those points.'); return; }
+  spokeLayer.clearLayers();
+  const opts = buildOptions(src, dst, S.bucket);
+  if (!opts) { toast('No walking route connects those points.'); return; }
+  S.routes = opts;
+  if (S.pick >= opts.length) S.pick = opts.length - 1;
+  $('intro').style.display = 'none';
+  renderCards();
+  select(S.pick, fit);
+}
+
+function renderCards() {
+  const base = S.routes[0].r;
+  $('cards').innerHTML = S.routes.map((o, i) => {
+    const cut = base.exposure > 0
+      ? Math.round((1 - o.r.exposure / base.exposure) * 100) : 0;
+    const sub = i === 0 || cut <= 0 ? o.hint : `${cut}% less exposure`;
+    return `<div class="rc${i === S.pick ? ' on' : ''}" data-i="${i}">
+      <span class="swatch" style="background:${bandColor(o.r.score / 100)}"></span>
+      <span class="who"><b>${o.label}</b><small>${sub}</small></span>
+      <span class="num"><b>${fmtMin(o.r.dist)}</b><small>${fmtM(o.r.dist)} / ${Math.round(o.r.score)}</small></span>
+    </div>`;
+  }).join('');
+  $('r-cards').style.display = '';
+}
+
+function select(i, fit = true) {
+  S.pick = i;
+  const sel = S.routes[i].r, base = S.routes[0].r;
+  [...$('cards').children].forEach((c, k) => c.classList.toggle('on', k === i));
 
   routeLayer.clearLayers();
-  L.polyline(routeLatLngs(fast), {
-    color: '#ffb020', weight: 5, opacity: .9, dashArray: '2,8',
-    lineCap: 'round', interactive: false,
-  }).addTo(routeLayer);
-  L.polyline(routeLatLngs(safe), {
-    color: '#000', weight: 9, opacity: .45, interactive: false,
-  }).addTo(routeLayer);
-  L.polyline(routeLatLngs(safe), {
-    color: '#35d98a', weight: 5, opacity: .97,
-    lineCap: 'round', interactive: false,
-  }).addTo(routeLayer);
-
-  $('safe-dist').textContent = fmtKm(safe.dist);
-  $('safe-time').textContent = fmtMin(safe.dist);
-  $('fast-dist').textContent = fmtKm(fast.dist);
-  $('fast-time').textContent = fmtMin(fast.dist);
-
-  // Intensity, not a raw total: the safer route is longer, so comparing sums
-  // would flatter it unfairly. Per-100 m is the honest comparison.
-  $('safe-risk').textContent = (safe.exposure / safe.dist * 100).toFixed(1);
-  $('fast-risk').textContent = (fast.exposure / fast.dist * 100).toFixed(1);
-
-  const cut = fast.exposure > 0
-    ? Math.round((1 - safe.exposure / fast.exposure) * 100) : 0;
-  const extraM = safe.dist - fast.dist;
-  const extraMin = Math.round(extraM / WALK_MPS / 60);
-  $('r-safe-note').textContent = extraM < 15 ? 'same route' : `+${fmtKm(extraM)}`;
-
-  const vd = $('verdict');
-  vd.classList.remove('flat');
-  if (extraM < 15) {
-    vd.innerHTML = 'The shortest route here is already the safest one — '
-                 + 'no detour needed.';
-  } else if (cut <= 2) {
-    vd.classList.add('flat');
-    vd.innerHTML = 'Every path between these points carries similar risk. '
-                 + 'The detour buys little — a different meeting point would '
-                 + 'help more than a different route.';
-  } else if (extraMin < 1) {
-    // Sub-minute detours are the best possible outcome, so say so rather than
-    // rendering the nonsensical "walking 0 minutes longer".
-    vd.innerHTML = `An extra <b>${Math.round(extraM)} m</b> — under a minute's `
-                 + `walk — cuts exposure to violent street crime by `
-                 + `<b>${cut}%</b>.`;
-  } else {
-    vd.innerHTML = `Walking <b>${extraMin} minute${extraMin === 1 ? '' : 's'}</b> `
-                 + `longer cuts exposure to violent street crime by <b>${cut}%</b>.`;
+  if (i !== 0) {
+    L.polyline(routeLatLngs(base), {
+      color: '#211f18', weight: 2.5, opacity: .5, dashArray: '3,6',
+      interactive: false,
+    }).addTo(routeLayer);
   }
+  L.polyline(routeLatLngs(sel), {
+    color: '#fff', weight: 8, opacity: .75, interactive: false,
+  }).addTo(routeLayer);
+  L.polyline(routeLatLngs(sel), {
+    color: '#3c7a4e', weight: 4.5, opacity: 1, lineCap: 'round',
+    interactive: false,
+  }).addTo(routeLayer);
 
-  $('worst').innerHTML =
-    `Worst block on the shortest route scores <b>${fast.worstR.toFixed(2)}</b>; `
-    + `on the safest route, <b>${safe.worstR.toFixed(2)}</b>. `
-    + `<span style="color:var(--ink-faint)">Solved ${S.nNodes.toLocaleString()} `
-    + `intersections in ${ms.toFixed(0)} ms.</span>`;
+  // why
+  const ex = explain(sel, base, S.bucket);
+  const el = $('because');
+  el.className = 'because' + (ex.flat ? ' flat' : '');
+  el.innerHTML = ex.html;
+  $('r-because').style.display = '';
 
-  $('results').classList.add('show');
-  // Snap rather than glide: a routing result should be on screen immediately,
-  // and the pan animation only delays the heatmap redraw behind it.
-  map.fitBounds(L.featureGroup(routeLayer.getLayers()).getBounds().pad(0.16),
+  // same route at other hours
+  const vals = [0, 1, 2].map(b => scoreAt(sel, b));
+  const max = Math.max(...vals, 1);
+  $('hours').innerHTML = vals.map((v, b) => `
+    <div class="hrow${b === S.bucket ? ' now' : ''}">
+      <span>${WINDOWS[b][0].toUpperCase() + WINDOWS[b].slice(1)}</span>
+      <span class="track"><i class="bar" style="width:${(v / max * 100).toFixed(1)}%;background:${bandColor(v / 100)}"></i></span>
+      <b>${Math.round(v)}</b>
+    </div>`).join('');
+  const worst = vals.indexOf(Math.max(...vals));
+  $('hours-note').textContent =
+    `Walking this same path is hardest in the ${WINDOWS[worst]} (${WINDOW_CLOCK[worst]}). `
+    + `Switching the window above re-runs the search, which often picks a different path.`;
+  $('r-hours').style.display = '';
+
+  // street by street
+  const turns = turnList(sel, S.bucket);
+  $('turnlist').innerHTML = turns.slice(0, 60).map(t => `
+    <li><span>${t.label}</span><span class="m">${fmtM(t.len)}</span>
+    <span class="chip" style="color:${bandColor(t.worst)}">${Math.round(t.worst * 100)}</span></li>`).join('');
+  $('r-turns').style.display = '';
+  $('r-share').style.display = '';
+
+  writeUrl();
+  if (fit) {
+    map.fitBounds(L.featureGroup(routeLayer.getLayers()).getBounds().pad(0.16),
+                  { animate: false });
+  }
+}
+
+/* -------------------------------------------------------- school report */
+function report(school) {
+  const dst = nearestNode(school.lat, school.lon);
+  if (dst < 0) { toast('That school is not near a walkable street.'); return; }
+  const R = 1200;
+  const rows = [];
+  spokeLayer.clearLayers();
+  routeLayer.clearLayers();
+
+  for (let k = 0; k < COMPASS.length; k++) {
+    const th = k * 2 * Math.PI / COMPASS.length;
+    const lat = school.lat + (R * Math.cos(th)) / 111320;
+    const lon = school.lon + (R * Math.sin(th)) / 92500;
+    const src = nearestNode(lat, lon);
+    if (src < 0 || src === dst) continue;
+    // Lambda 0: what a student walks without this tool, which is what makes a
+    // direction dangerous in the first place.
+    const r = route(src, dst, 0, S.bucket);
+    if (!r) continue;
+    rows.push({ dir: COMPASS[k], r });
+  }
+  if (!rows.length) { toast('Could not reach that school from any direction.'); return; }
+
+  rows.sort((a, b) => b.r.score - a.r.score);
+  const worst = rows[0], best = rows[rows.length - 1];
+
+  for (const row of rows) {
+    L.polyline(routeLatLngs(row.r), {
+      color: bandColor(row.r.score / 100), weight: 3.5, opacity: .9,
+      interactive: false, lineCap: 'round',
+    }).addTo(spokeLayer);
+  }
+  pinLayer.clearLayers();
+  pin([school.lat, school.lon], '#211f18', school.name)
+    .bindTooltip(school.name, { direction: 'top', offset: [0, -8] }).addTo(pinLayer);
+
+  $('rc-title').innerHTML = `${rows.length} approaches / <b>${WINDOWS[S.bucket]}</b>`;
+  $('rc-body').innerHTML = rows.map(row => {
+    const cls = row === worst ? ' class="worst"' : row === best ? ' class="best"' : '';
+    return `<tr${cls}><td class="dir"><span class="swatch" style="background:${bandColor(row.r.score / 100)}"></span>${row.dir}</td>`
+      + `<td>${fmtM(row.r.dist)}</td><td class="sc">${Math.round(row.r.score)}</td></tr>`;
+  }).join('');
+  const ratio = best.r.score > 0 ? (worst.r.score / best.r.score) : 0;
+  $('rc-note').innerHTML =
+    `Approaching ${school.name} from the <b>${worst.dir}</b> means walking through `
+    + `${ratio >= 1.15 ? `<b>${ratio.toFixed(1)} times</b> the exposure of` : 'about the same exposure as'} `
+    + `the calmest approach, from the <b>${best.dir}</b>. `
+    + `That is where a crossing guard, a lighting request or a walking group would do the most good.`;
+  $('rc-out').style.display = '';
+  map.fitBounds(L.featureGroup(spokeLayer.getLayers()).getBounds().pad(0.08),
                 { animate: false });
 }
 
+/* --------------------------------------------------------- autocomplete */
+function attachAC(inputId, listId, search, onPick) {
+  const input = $(inputId), list = $(listId);
+  let items = [], sel = -1, timer = null;
+
+  const close = () => { list.classList.remove('on'); sel = -1; };
+  const render = () => {
+    if (!items.length) { close(); return; }
+    list.innerHTML = items.map((it, i) =>
+      `<div${i === sel ? ' class="sel"' : ''} data-i="${i}">${it.label}`
+      + (it.sub ? `<small>${it.sub}</small>` : '') + '</div>').join('');
+    list.classList.add('on');
+  };
+
+  input.addEventListener('input', () => {
+    clearTimeout(timer);
+    const q = input.value.trim();
+    if (q.length < 2) { items = []; close(); return; }
+    timer = setTimeout(async () => {
+      try {
+        items = (await search(q)) || [];
+      } catch (e) { items = []; }
+      if (!items.length) {
+        list.innerHTML = '<div class="none">Nothing found for that</div>';
+        list.classList.add('on');
+        return;
+      }
+      sel = -1; render();
+    }, 260);
+  });
+
+  input.addEventListener('keydown', e => {
+    if (!list.classList.contains('on') || !items.length) return;
+    if (e.key === 'ArrowDown') { sel = Math.min(items.length - 1, sel + 1); render(); e.preventDefault(); }
+    else if (e.key === 'ArrowUp') { sel = Math.max(0, sel - 1); render(); e.preventDefault(); }
+    else if (e.key === 'Enter') {
+      e.preventDefault();
+      onPick(items[sel < 0 ? 0 : sel]); close();
+    } else if (e.key === 'Escape') close();
+  });
+
+  list.addEventListener('mousedown', e => {
+    const d = e.target.closest('div[data-i]'); if (!d) return;
+    e.preventDefault();
+    onPick(items[+d.dataset.i]); close();
+  });
+  input.addEventListener('blur', () => setTimeout(close, 140));
+}
+
+const searchSchools = q => {
+  const v = q.toLowerCase();
+  return S.schools
+    .filter(s => s.name.toLowerCase().includes(v))
+    .slice(0, 8)
+    .map(s => ({ label: s.name, sub: `${s.level} / ${s.city}`, school: s }));
+};
+
+/* Addresses go through Nominatim, bounded to the study area so a search for
+ * "Main Street" lands in Los Angeles rather than Ohio. */
+async function searchPlaces(q) {
+  const b = S.meta.bbox;
+  const url = `${NOMINATIM}?format=jsonv2&limit=6&addressdetails=0`
+    + `&countrycodes=us&bounded=1`
+    + `&viewbox=${b.west},${b.north},${b.east},${b.south}`
+    + `&q=${encodeURIComponent(q)}`;
+  const res = await fetch(url, { headers: { 'Accept-Language': 'en' } });
+  if (!res.ok) throw new Error('lookup failed');
+  const j = await res.json();
+  return j.map(p => {
+    const bits = p.display_name.split(',').map(s => s.trim());
+    return {
+      label: bits.slice(0, 2).join(', '),
+      sub: bits.slice(2, 5).join(', '),
+      lat: +p.lat, lon: +p.lon,
+    };
+  });
+}
+
+/* ------------------------------------------------------------ url state */
+function writeUrl() {
+  if (!S.origin || !S.school) return;
+  const p = new URLSearchParams();
+  p.set('from', `${S.origin.lat.toFixed(5)},${S.origin.lon.toFixed(5)}`);
+  p.set('to', S.school.id || `${S.school.lat.toFixed(5)},${S.school.lon.toFixed(5)}`);
+  p.set('when', String(S.bucket));
+  p.set('pick', String(S.pick));
+  history.replaceState(null, '', `${location.pathname}?${p}`);
+}
+
+function readUrl() {
+  const p = new URLSearchParams(location.search);
+  const from = p.get('from'), to = p.get('to');
+  if (!from || !to) return false;
+  const [flat, flon] = from.split(',').map(Number);
+  if (!isFinite(flat) || !isFinite(flon)) return false;
+  S.origin = { lat: flat, lon: flon };
+  $('origin').value = `${flat.toFixed(5)}, ${flon.toFixed(5)}`;
+
+  let sc = S.schools.find(s => s.id === to);
+  if (!sc && to.includes(',')) {
+    const [tlat, tlon] = to.split(',').map(Number);
+    if (isFinite(tlat) && isFinite(tlon)) sc = { name: 'Chosen destination', lat: tlat, lon: tlon };
+  }
+  if (!sc) return false;
+  S.school = sc;
+  $('school').value = sc.name;
+
+  const w = +p.get('when');
+  if (w >= 0 && w <= 2) setWindow(w, false);
+  const k = +p.get('pick');
+  if (k >= 0 && k <= 2) S.pick = k;
+  return true;
+}
+
 /* ---------------------------------------------------------------- UI */
+function setWindow(b, recompute = true) {
+  S.bucket = b;
+  [...$('when').children].forEach(c => c.classList.toggle('on', +c.dataset.b === b));
+  $('lg-when').textContent = WINDOWS[b];
+  drawRisk();
+  if (recompute && S.origin && S.school) compute(false);
+}
+
 document.querySelector('.tabs').addEventListener('click', e => {
   const t = e.target.closest('.tab'); if (!t) return;
   document.querySelectorAll('.tab').forEach(x => x.classList.remove('on'));
   document.querySelectorAll('.pane').forEach(x => x.classList.remove('on'));
   t.classList.add('on');
   $('p-' + t.dataset.p).classList.add('on');
+  if (t.dataset.p !== 'school') spokeLayer.clearLayers();
+});
+
+$('when').addEventListener('click', e => {
+  const d = e.target.closest('div[data-b]'); if (!d) return;
+  setWindow(+d.dataset.b);
+});
+
+$('cards').addEventListener('click', e => {
+  const c = e.target.closest('.rc'); if (!c) return;
+  select(+c.dataset.i);
 });
 
 map.on('click', ev => {
-  const p = { lat: ev.latlng.lat, lon: ev.latlng.lng };
-  if (ev.originalEvent.shiftKey) {
-    S.school = { name: 'Custom destination', ...p };
-    $('school').value = 'Custom destination';
-  } else {
-    S.origin = p;
-    $('origin').value = `${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}`;
+  S.origin = { lat: ev.latlng.lat, lon: ev.latlng.lng };
+  $('origin').value = `${S.origin.lat.toFixed(5)}, ${S.origin.lon.toFixed(5)}`;
+  redrawPins();
+  $('go').disabled = !S.school;
+  if (S.school) compute();
+});
+
+$('go').addEventListener('click', () => compute());
+
+$('share').addEventListener('click', async () => {
+  writeUrl();
+  try {
+    await navigator.clipboard.writeText(location.href);
+    $('share').textContent = 'Link copied';
+    setTimeout(() => { $('share').textContent = 'Copy a link to this route'; }, 2200);
+  } catch (e) {
+    toast('Copy failed. The address bar holds the link.');
   }
+});
+
+$('demo').addEventListener('click', () => {
+  const sc = S.schools.find(s => /Enriched Studies/i.test(s.name)) || S.schools[0];
+  S.school = sc;
+  S.origin = { lat: 34.0380, lon: -118.3620 };
+  $('school').value = sc.name;
+  $('origin').value = 'Near Hauser & Venice, Mid-City';
+  setWindow(2, false);
   redrawPins();
-  $('go').disabled = !(S.origin && S.school);
-  if (S.origin && S.school) compute();
+  $('go').disabled = false;
+  compute();
 });
-
-/* Datalists only fire an exact-value match, which makes a 668-entry list feel
- * broken when someone types "hamilton" instead of the full official name.
- * Fall back to a case-insensitive prefix match, then a substring match. */
-function findSchool(q) {
-  const v = q.trim().toLowerCase();
-  if (!v) return null;
-  return S.schools.find(x => x.name.toLowerCase() === v)
-      || S.schools.find(x => x.name.toLowerCase().startsWith(v))
-      || S.schools.find(x => x.name.toLowerCase().includes(v))
-      || null;
-}
-
-function pickSchool(q) {
-  const s = findSchool(q);
-  if (!s) { if (q.trim()) toast(`No school matching "${q.trim()}".`); return; }
-  S.school = s;
-  $('school').value = s.name;
-  redrawPins();
-  $('go').disabled = !S.origin;
-  if (S.origin) compute(); else map.setView([s.lat, s.lon], 15);
-}
-
-$('school').addEventListener('change', e => pickSchool(e.target.value));
-$('school').addEventListener('keydown', e => {
-  if (e.key === 'Enter') pickSchool(e.target.value);
-});
-
-$('timepills').addEventListener('click', e => {
-  const p = e.target.closest('.pill'); if (!p) return;
-  [...$('timepills').children].forEach(c => c.classList.remove('on'));
-  p.classList.add('on');
-  S.bucket = +p.dataset.b;
-  $('lg-time').textContent = ['morning', 'afternoon', 'after dark'][S.bucket];
-  drawRisk();
-  if (S.origin && S.school) compute();
-});
-
-$('lam').addEventListener('input', e => { S.lambda = e.target.value / 100; });
-$('lam').addEventListener('change', () => { if (S.origin && S.school) compute(); });
-$('go').addEventListener('click', compute);
 
 $('t-risk').addEventListener('click', e => {
   S.showRisk = !S.showRisk;
@@ -521,7 +818,7 @@ $('t-schools').addEventListener('click', e => {
     if (!schoolLayer.getLayers().length) {
       for (const s of S.schools) {
         L.circleMarker([s.lat, s.lon], {
-          radius: 3, color: '#35d98a', weight: 1, fillOpacity: .5,
+          radius: 2.5, color: '#211f18', weight: 1, fillOpacity: .45,
         }).bindTooltip(s.name, { direction: 'top' }).addTo(schoolLayer);
       }
     }
@@ -529,11 +826,11 @@ $('t-schools').addEventListener('click', e => {
   } else map.removeLayer(schoolLayer);
 });
 
+$('rc-run').addEventListener('click', () => {
+  if (S.rcSchool) report(S.rcSchool);
+});
+
 /* -------------------------------------------------------------- boot */
-/* The graph ships pre-gzipped (9.9 MB -> 5.0 MB) and is inflated here, so the
- * transfer size is the same whether or not the host compresses .bin itself.
- * Progress is reported against the compressed bytes, which is what the user is
- * actually waiting on. Falls back to the raw file on older browsers. */
 async function fetchGraph(onPct) {
   if (typeof DecompressionStream === 'function') {
     try {
@@ -549,79 +846,97 @@ async function fetchGraph(onPct) {
           },
         });
         const buf = await new Response(
-          res.body.pipeThrough(counter)
-                  .pipeThrough(new DecompressionStream('gzip'))
+          res.body.pipeThrough(counter).pipeThrough(new DecompressionStream('gzip'))
         ).arrayBuffer();
-        // A host that sets Content-Encoding: gzip makes the browser inflate the
-        // body for us, so inflating a second time yields garbage rather than
-        // throwing. Verify the magic before trusting it, and fall through if
-        // it is wrong.
-        if (buf.byteLength > 20 && new Uint32Array(buf, 0, 1)[0] === MAGIC) {
-          return buf;
-        }
-        console.warn('inflated graph failed its magic check; using graph.bin');
+        // A host that sets Content-Encoding: gzip has the browser inflate for
+        // us, so inflating twice yields garbage rather than throwing. Check the
+        // magic before trusting it.
+        if (buf.byteLength > 24 && new Uint32Array(buf, 0, 1)[0] === MAGIC) return buf;
+        console.warn('inflated graph failed its magic check, using graph.bin');
       }
     } catch (e) {
-      console.warn('gzip path unavailable, falling back to graph.bin', e);
+      console.warn('gzip path unavailable, using graph.bin', e);
     }
   }
   const res = await fetch('data/graph.bin');
   if (!res.ok) throw new Error(`graph.bin: HTTP ${res.status}`);
-  const total = +(res.headers.get('content-length') || 0);
-  if (!total || !res.body) return res.arrayBuffer();
-  const chunks = [];
-  let got = 0;
-  const reader = res.body.getReader();
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    chunks.push(value);
-    got += value.length;
-    onPct(got / total, got, total);
-  }
-  const out = new Uint8Array(got);
-  let o = 0;
-  for (const c of chunks) { out.set(c, o); o += c.length; }
-  return out.buffer;
+  return res.arrayBuffer();
+}
+
+function windowForNow() {
+  const h = new Date().getHours();
+  if (h >= 5 && h < 10) return 0;
+  if (h >= 10 && h < 17) return 1;
+  return 2;
 }
 
 async function boot() {
-  const [meta, schools] = await Promise.all([
+  const [meta, schools, names] = await Promise.all([
     fetch('data/graph_meta.json').then(r => r.json()),
     fetch('data/schools.json').then(r => r.json()),
+    fetch('data/street_names.json').then(r => r.json()),
   ]);
-  S.meta = meta; S.schools = schools;
+  S.meta = meta; S.schools = schools; S.names = names;
+  $('boot-sub').textContent =
+    `${meta.crimes.toLocaleString()} incidents / ${meta.km.toLocaleString()} km of street`;
 
-  $('s-schools').textContent = schools.length;
-  $('s-blocks').textContent = Math.round(meta.edges / 1000) + 'k';
-  $('s-crimes').textContent = Math.round(meta.crimes / 1000) + 'k';
-  $('load-sub').textContent =
-    `${meta.crimes.toLocaleString()} incidents · ${meta.km.toLocaleString()} km of street`;
-
-  $('schoollist').innerHTML =
-    schools.map(s => `<option value="${s.name.replace(/"/g, '&quot;')}">`).join('');
+  $('lg-scale').innerHTML =
+    BANDS.map(b => `<i style="background:${b.hex}"></i>`).join('');
 
   const buf = await fetchGraph((pct, got, total) => {
-    $('load-msg').textContent =
-      `Loading the street network… ${Math.round(pct * 100)}%`;
-    $('load-sub').textContent =
+    $('boot-bar').style.width = `${(pct * 100).toFixed(0)}%`;
+    $('boot-sub').textContent =
       `${(got / 1e6).toFixed(1)} of ${(total / 1e6).toFixed(1)} MB`;
   });
 
-  $('load-msg').textContent = 'Building the routing graph…';
-  $('load-sub').textContent = `${meta.edges.toLocaleString()} blocks`;
+  $('boot-msg').textContent = 'Building the routing graph';
+  $('boot-bar').style.width = '100%';
   decode(buf);
   buildAdjacency();
   buildIndex();
 
-  $('loading').classList.add('done');
+  attachAC('school', 'ac-school', q => searchSchools(q), it => {
+    S.school = it.school;
+    $('school').value = it.school.name;
+    redrawPins();
+    $('go').disabled = !S.origin;
+    if (S.origin) compute(); else map.setView([it.school.lat, it.school.lon], 15);
+  });
+
+  attachAC('origin', 'ac-origin', searchPlaces, it => {
+    S.origin = { lat: it.lat, lon: it.lon };
+    $('origin').value = it.label;
+    redrawPins();
+    $('go').disabled = !S.school;
+    if (S.school) compute();
+  });
+
+  attachAC('rc-school', 'ac-rc', q => searchSchools(q), it => {
+    S.rcSchool = it.school;
+    $('rc-school').value = it.school.name;
+    $('rc-run').disabled = false;
+  });
+
+  const now = windowForNow();
+  const restored = readUrl();
+  if (!restored) {
+    setWindow(now, false);
+    const clock = new Date().toLocaleTimeString('en-US',
+      { hour: 'numeric', minute: '2-digit' });
+    $('when-note').textContent =
+      `It is ${clock}, so ${WINDOWS[now]} is selected. Change it to plan a different walk.`;
+  } else {
+    $('when-note').textContent = 'Restored from a shared link.';
+  }
+
+  $('boot').classList.add('done');
   drawRisk();
+  if (restored) { redrawPins(); compute(); }
 }
 
 boot().catch(err => {
-  $('loading').classList.remove('done');
-  document.querySelector('.spin').style.display = 'none';
-  $('load-msg').textContent = 'Could not load the data files.';
-  $('load-sub').textContent = err.message;
+  $('boot').classList.remove('done');
+  $('boot-msg').textContent = 'The data files did not load.';
+  $('boot-sub').textContent = err.message;
   console.error(err);
 });
