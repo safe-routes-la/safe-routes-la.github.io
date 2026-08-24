@@ -468,13 +468,31 @@ map.on('click', ev => {
   if (S.origin && S.school) compute();
 });
 
-$('school').addEventListener('change', e => {
-  const s = S.schools.find(x => x.name === e.target.value);
-  if (!s) return;
+/* Datalists only fire an exact-value match, which makes a 668-entry list feel
+ * broken when someone types "hamilton" instead of the full official name.
+ * Fall back to a case-insensitive prefix match, then a substring match. */
+function findSchool(q) {
+  const v = q.trim().toLowerCase();
+  if (!v) return null;
+  return S.schools.find(x => x.name.toLowerCase() === v)
+      || S.schools.find(x => x.name.toLowerCase().startsWith(v))
+      || S.schools.find(x => x.name.toLowerCase().includes(v))
+      || null;
+}
+
+function pickSchool(q) {
+  const s = findSchool(q);
+  if (!s) { if (q.trim()) toast(`No school matching "${q.trim()}".`); return; }
   S.school = s;
+  $('school').value = s.name;
   redrawPins();
   $('go').disabled = !S.origin;
   if (S.origin) compute(); else map.setView([s.lat, s.lon], 15);
+}
+
+$('school').addEventListener('change', e => pickSchool(e.target.value));
+$('school').addEventListener('keydown', e => {
+  if (e.key === 'Enter') pickSchool(e.target.value);
 });
 
 $('timepills').addEventListener('click', e => {
