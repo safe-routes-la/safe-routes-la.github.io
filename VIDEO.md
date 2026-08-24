@@ -8,6 +8,9 @@ Before recording: open <https://adrianerlikhman.is-a.dev/safe-routes-to-school/>
 and let the graph finish loading, then reload once so it's warm and the
 progress bar is quick.
 
+If you have opened the site before, **hard-refresh** (Ctrl+Shift+R) first —
+otherwise the browser may run a cached `app.js` from an earlier version.
+
 ---
 
 ## 0:00 — 0:25 · The number
