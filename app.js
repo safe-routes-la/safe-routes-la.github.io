@@ -421,6 +421,12 @@ function compute() {
     vd.innerHTML = 'Every path between these points carries similar risk. '
                  + 'The detour buys little — a different meeting point would '
                  + 'help more than a different route.';
+  } else if (extraMin < 1) {
+    // Sub-minute detours are the best possible outcome, so say so rather than
+    // rendering the nonsensical "walking 0 minutes longer".
+    vd.innerHTML = `An extra <b>${Math.round(extraM)} m</b> — under a minute's `
+                 + `walk — cuts exposure to violent street crime by `
+                 + `<b>${cut}%</b>.`;
   } else {
     vd.innerHTML = `Walking <b>${extraMin} minute${extraMin === 1 ? '' : 's'}</b> `
                  + `longer cuts exposure to violent street crime by <b>${cut}%</b>.`;
