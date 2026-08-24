@@ -14,7 +14,7 @@ Fill in the team name and members, then paste the rest into the form.
 
 ## Team members
 
-`fill in`
+Adrian Erlikhman, Michael `<surname>`
 
 ## Project description
 
@@ -41,10 +41,25 @@ evening means 2.5 times the exposure of walking in from the east northeast. That
 is the version a principal or a city council member can act on, because it says
 where to put a crossing guard rather than what one student should do tomorrow.
 
+**Walking or riding.** Buses change the problem rather than just the route,
+because minutes on board are minutes off the street. Switch modes and the app
+plans single-ride and one-transfer itineraries from LA Metro's published
+schedule data: walk to a stop, wait, ride, walk the rest. A real trip from
+Exposition and Normandie up to LACES takes 118 minutes and 9.3 km of sidewalk on
+foot, against 40 minutes and 750 m on foot riding Route 206 then Route 33.
+Exposure drops 80%, and it is faster.
+
+Waiting is charged honestly. Standing at a stop is exposure without progress, so
+a minute of waiting costs the same as 80 m of walking on that block, which is
+deliberately above walking pace. A stop on a bad corner is not a safe place to
+spend eight minutes. We stop at one transfer, because a second one adds another
+wait to stand through and is advice nobody follows.
+
 **Where the data comes from.** 85,634 violent incidents from the LAPD open data
 portal, 128,534 streetlights from the Bureau of Street Lighting, 668 school
-locations from the California Department of Education, and 18,473 km of walkable
-street from OpenStreetMap, cut into 431,599 blocks.
+locations from the California Department of Education, 18,473 km of walkable street
+from OpenStreetMap cut into 431,599 blocks, and 5,395 transit stops with 171
+route patterns from LA Metro's GTFS feeds.
 
 **What we threw away mattered more than what we kept.** The raw LAPD file holds
 about a million records. We keep only offences that threaten someone walking

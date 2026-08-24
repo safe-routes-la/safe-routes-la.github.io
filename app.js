@@ -37,7 +37,7 @@ const S = {
   gOff: null, gPts: null,
   head: null, to: null, eidx: null,
   nNodes: 0, nEdges: 0,
-  bucket: 1, pick: 2,
+  bucket: 1, pick: 2, mode: 'foot',
   origin: null, school: null,
   routes: null,
   showRisk: true, showSchools: false,
@@ -458,6 +458,239 @@ function redrawPins() {
 }
 
 /* ------------------------------------------------------------ compute */
+/* ---------------------------------------------------------------- transit */
+/* Standing at a stop is exposure without progress, so a minute of waiting is
+ * charged like this many metres of walking on the same block. Waiting is if
+ * anything worse per minute than moving, since you are stationary and
+ * predictable, so the rate is set above walking pace on purpose. */
+const WAIT_M_PER_MIN = 80;
+const MAX_STOP_WALK_M = 900;     // how far a student will walk to a stop
+const RIDE_CANDIDATES = 14;      // itineraries worth spending an A* run on
+
+const T = { stops: null, patterns: null, names: null, stopPat: null,
+            node: null, grid: null, CELL: 0.006 };
+
+function initTransit(data) {
+  T.stops = data.stops; T.patterns = data.patterns; T.names = data.names;
+  T.stopPat = new Map();
+  data.patterns.forEach((p, pi) => {
+    p.s.forEach((sIdx, pos) => {
+      let a = T.stopPat.get(sIdx);
+      if (!a) T.stopPat.set(sIdx, a = []);
+      a.push([pi, pos]);
+    });
+  });
+  T.node = new Int32Array(data.stops.length).fill(-2);   // -2 = not resolved
+  T.grid = new Map();
+  data.stops.forEach((s, i) => {
+    const k = ((Math.floor(s[0] / T.CELL) & 0xffff) << 16)
+            | (Math.floor(s[1] / T.CELL) & 0xffff);
+    let a = T.grid.get(k);
+    if (!a) T.grid.set(k, a = []);
+    a.push(i);
+  });
+}
+
+function stopNode(i) {
+  if (T.node[i] === -2) T.node[i] = nearestNode(T.stops[i][0], T.stops[i][1]);
+  return T.node[i];
+}
+
+function stopsNear(lat, lon, maxM) {
+  const out = [];
+  const span = Math.ceil(maxM / (T.CELL * 92500)) + 1;
+  const ci = Math.floor(lat / T.CELL), cj = Math.floor(lon / T.CELL);
+  for (let di = -span; di <= span; di++) {
+    for (let dj = -span; dj <= span; dj++) {
+      const a = T.grid.get((((ci + di) & 0xffff) << 16) | ((cj + dj) & 0xffff));
+      if (!a) continue;
+      for (const i of a) {
+        const d = metres(lat, lon, T.stops[i][0], T.stops[i][1]);
+        if (d <= maxM) out.push({ i, d });
+      }
+    }
+  }
+  return out.sort((x, y) => x.d - y.d).slice(0, 40);
+}
+
+/* Up to one transfer. Direct rides only covered a minority of real trips: a
+ * student in Koreatown heading to a school off Fairfax has no single route, and
+ * telling them "walk 8 km instead" is not an answer. Two rides is where most
+ * of Los Angeles becomes reachable. We stop there, because a second transfer
+ * adds another wait to stand through and is advice nobody follows.
+ *
+ * Forward pass: everywhere you can get to on one ride from a stop near home.
+ * Backward pass: everywhere you can ride to the school from. Any stop in both,
+ * or a short walk apart, is a usable transfer. */
+const XFER_WALK_M = 260;
+
+function forwardReach(seeds) {
+  const best = new Map();
+  for (const s of seeds) {
+    for (const [pi, posA] of (T.stopPat.get(s.i) || [])) {
+      const pat = T.patterns[pi];
+      for (let j = posA + 1; j < pat.s.length; j++) {
+        const ride = Math.max(0, pat.t[j] - pat.t[posA]) / 60;
+        const est = s.d / WALK_MPS / 60 + pat.w + ride;
+        const at = pat.s[j];
+        const cur = best.get(at);
+        if (!cur || est < cur.est) {
+          best.set(at, { est, pi, posA, posB: j, seed: s, ride, wait: pat.w });
+        }
+      }
+    }
+  }
+  return best;
+}
+
+function backwardReach(targets) {
+  const best = new Map();
+  for (const s of targets) {
+    for (const [pi, posB] of (T.stopPat.get(s.i) || [])) {
+      const pat = T.patterns[pi];
+      for (let i = 0; i < posB; i++) {
+        const ride = Math.max(0, pat.t[posB] - pat.t[i]) / 60;
+        const est = pat.w + ride + s.d / WALK_MPS / 60;
+        const from = pat.s[i];
+        const cur = best.get(from);
+        if (!cur || est < cur.est) {
+          best.set(from, { est, pi, posA: i, posB, target: s, ride, wait: pat.w });
+        }
+      }
+    }
+  }
+  return best;
+}
+
+function transitOptions(origin, school, bucket, lambda) {
+  if (!T.stops) return [];
+  const from = stopsNear(origin.lat, origin.lon, MAX_STOP_WALK_M);
+  const to = stopsNear(school.lat, school.lon, MAX_STOP_WALK_M);
+  if (!from.length || !to.length) return [];
+  const toNear = new Map(to.map(s => [s.i, s.d]));
+
+  const raw = [];
+
+  // ---- direct rides
+  for (const fs of from) {
+    for (const [pi, posA] of (T.stopPat.get(fs.i) || [])) {
+      const pat = T.patterns[pi];
+      for (let j = posA + 1; j < pat.s.length; j++) {
+        const dOff = toNear.get(pat.s[j]);
+        if (dOff === undefined) continue;
+        const ride = Math.max(0, pat.t[j] - pat.t[posA]) / 60;
+        raw.push({
+          legs: [{ pi, posA, posB: j }], xfer: null,
+          rideMin: ride, waitMin: pat.w,
+          est: fs.d / WALK_MPS / 60 + pat.w + ride + dOff / WALK_MPS / 60,
+        });
+      }
+    }
+  }
+
+  // ---- one transfer
+  const fwd = forwardReach(from);
+  const bwd = backwardReach(to);
+  for (const [stopX, f] of fwd) {
+    const [lat, lon] = T.stops[stopX];
+    const span = Math.ceil(XFER_WALK_M / (T.CELL * 92500)) + 1;
+    const ci = Math.floor(lat / T.CELL), cj = Math.floor(lon / T.CELL);
+    for (let di = -span; di <= span; di++) {
+      for (let dj = -span; dj <= span; dj++) {
+        const cell = T.grid.get((((ci + di) & 0xffff) << 16) | ((cj + dj) & 0xffff));
+        if (!cell) continue;
+        for (const stopY of cell) {
+          const b = bwd.get(stopY);
+          if (!b) continue;
+          if (b.pi === f.pi) continue;              // same bus, not a transfer
+          const w = stopX === stopY ? 0 : metres(lat, lon, T.stops[stopY][0], T.stops[stopY][1]);
+          if (w > XFER_WALK_M) continue;
+          raw.push({
+            legs: [{ pi: f.pi, posA: f.posA, posB: f.posB },
+                   { pi: b.pi, posA: b.posA, posB: b.posB }],
+            xfer: { from: stopX, to: stopY, metres: w },
+            rideMin: f.ride + b.ride, waitMin: f.wait + b.wait,
+            est: f.est + w / WALK_MPS / 60 + b.est,
+          });
+        }
+      }
+    }
+  }
+  if (!raw.length) return [];
+  raw.sort((a, b) => a.est - b.est);
+
+  // ---- cost the plausible handful properly
+  const walkCache = new Map();
+  const legRoute = (a, b) => {
+    const k = `${a}|${b}`;
+    if (!walkCache.has(k)) walkCache.set(k, route(a, b, lambda, bucket));
+    return walkCache.get(k);
+  };
+  const srcNode = nearestNode(origin.lat, origin.lon);
+  const dstNode = nearestNode(school.lat, school.lon);
+  const stopRiskAt = si => {
+    const e = firstEdgeAt(stopNode(si));
+    return e >= 0 ? risk(e, bucket) : 0.3;
+  };
+
+  const out = [];
+  const seen = new Set();
+  for (const c of raw.slice(0, RIDE_CANDIDATES)) {
+    const first = T.patterns[c.legs[0].pi], last = T.patterns[c.legs[c.legs.length - 1].pi];
+    const bStop = first.s[c.legs[0].posA];
+    const aStop = last.s[c.legs[c.legs.length - 1].posB];
+    const key = c.legs.map(l => T.patterns[l.pi].r).join('>') + `|${bStop}|${aStop}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    const bn = stopNode(bStop), an = stopNode(aStop);
+    if (bn < 0 || an < 0 || bn === an) continue;
+    const legA = bn === srcNode ? null : legRoute(srcNode, bn);
+    const legB = an === dstNode ? null : legRoute(an, dstNode);
+    if ((bn !== srcNode && !legA) || (an !== dstNode && !legB)) continue;
+
+    let waitExp = 0;
+    waitExp += stopRiskAt(bStop) * WAIT_M_PER_MIN * first.w;
+    if (c.legs.length > 1) {
+      waitExp += stopRiskAt(c.xfer.to) * WAIT_M_PER_MIN * last.w;
+      waitExp += stopRiskAt(c.xfer.from) * c.xfer.metres;   // the transfer walk
+    }
+    const walkDist = (legA ? legA.dist : 0) + (legB ? legB.dist : 0)
+                   + (c.xfer ? c.xfer.metres : 0);
+    const exposure = (legA ? legA.exposure : 0) + (legB ? legB.exposure : 0) + waitExp;
+    const timeMin = ((legA ? legA.dist : 0) + (legB ? legB.dist : 0)) / WALK_MPS / 60
+                  + (c.xfer ? c.xfer.metres / WALK_MPS / 60 : 0)
+                  + c.waitMin + c.rideMin;
+    out.push({
+      kind: 'transit', legs: c.legs, xfer: c.xfer, bStop, aStop, legA, legB,
+      rideMin: c.rideMin, waitMin: c.waitMin, stopRisk: stopRiskAt(bStop),
+      dist: walkDist, exposure, timeMin,
+      routeLabel: c.legs.map(l => T.patterns[l.pi].r).join(' then '),
+      isRail: c.legs.every(l => T.patterns[l.pi].k === 'rail'),
+    });
+  }
+
+  // One itinerary per combination of routes. Three boarding points on the same
+  // bus is not three choices, so keep the calmest version of each.
+  const best = new Map();
+  for (const o of out) {
+    const cur = best.get(o.routeLabel);
+    if (!cur || o.exposure < cur.exposure) best.set(o.routeLabel, o);
+  }
+  return [...best.values()].sort((a, b) => a.exposure - b.exposure);
+}
+
+function firstEdgeAt(node) {
+  return S.head[node] < S.head[node + 1] ? S.eidx[S.head[node]] : -1;
+}
+
+/* Exposure in comparable units across modes: total risk-metres over 100, so a
+ * bus trip and a walk can be put side by side honestly. Riding scores near zero
+ * because the minutes on board are minutes off the street. */
+const expUnits = o => o.exposure / 100;
+const optTime = o => (o.kind === 'transit' ? o.timeMin : o.r.dist / WALK_MPS / 60);
+const optWalk = o => (o.kind === 'transit' ? o.dist : o.r.dist);
+
 const sig = r => r.edges.join(',');
 
 function buildOptions(src, dst, bucket) {
@@ -469,9 +702,12 @@ function buildOptions(src, dst, bucket) {
   const all = [...seen.values()];
   if (!all.length) return null;
 
+  const foot = (r, label, hint) =>
+    ({ kind: 'foot', r, exposure: r.exposure, label, hint });
+
   const fast = all.reduce((a, b) => (b.dist < a.dist ? b : a));
   const safe = all.reduce((a, b) => (b.exposure < a.exposure ? b : a));
-  const out = [{ r: fast, label: 'Shortest', hint: 'what a map app gives you' }];
+  const out = [foot(fast, 'Shortest', 'what a map app gives you')];
   if (sig(safe) === sig(fast)) return out;
 
   // A middle option only earns its place if it buys more calm per extra metre
@@ -484,8 +720,8 @@ function buildOptions(src, dst, bucket) {
     const eff = cut / Math.max(m.dist - fast.dist, 1);
     if (eff > bestEff) { bestEff = eff; mid = m; }
   }
-  if (mid) out.push({ r: mid, label: 'Balanced', hint: 'most calm per extra step' });
-  out.push({ r: safe, label: 'Safest', hint: 'lowest exposure available' });
+  if (mid) out.push(foot(mid, 'Balanced', 'most calm per extra step'));
+  out.push(foot(safe, 'Safest', 'lowest exposure available'));
   return out;
 }
 
@@ -497,8 +733,36 @@ function compute(fit = true) {
   if (src === dst) { toast('That start point is already at the school.'); return; }
 
   spokeLayer.clearLayers();
-  const opts = buildOptions(src, dst, S.bucket);
-  if (!opts) { toast('No walking route connects those points.'); return; }
+  const onFoot = buildOptions(src, dst, S.bucket);
+  if (!onFoot) { toast('No walking route connects those points.'); return; }
+
+  let opts = onFoot;
+  if (S.mode === 'bus') {
+    const rides = transitOptions(S.origin, S.school, S.bucket, 3.0);
+    if (!rides.length) {
+      toast('No single bus or rail ride links those points. Showing the walk.');
+      $('mode-note').textContent =
+        'Nothing within a 900 m walk of both ends shares one route, so these are '
+        + 'walking options. Transfers are out of scope: each change adds another '
+        + 'wait to stand through.';
+    } else {
+      // Always keep the calmest walk on screen, so the bus is compared against
+      // the real alternative rather than presented on its own.
+      const walkRef = onFoot[onFoot.length - 1];
+      opts = rides.slice(0, 3).map(o => ({
+        ...o,
+        label: `${o.isRail ? 'Rail' : 'Route'} ${o.routeLabel}`,
+        hint: `${Math.round(o.rideMin)} min riding, ${fmtM(o.dist)} on foot`
+            + (o.xfer ? ', one change' : ''),
+      }));
+      opts.push({ ...walkRef, label: 'Walk the whole way',
+                  hint: 'no bus, for comparison' });
+      $('mode-note').textContent =
+        'Riding covers distance without putting you on the street. Waiting does '
+        + `not, so a minute at a stop is charged like ${WAIT_M_PER_MIN} m of walking there.`;
+    }
+  }
+
   S.routes = opts;
   if (S.pick >= opts.length) S.pick = opts.length - 1;
   $('intro').style.display = 'none';
@@ -507,68 +771,193 @@ function compute(fit = true) {
 }
 
 function renderCards() {
-  const base = S.routes[0].r;
+  // Compare against the plain walk: in foot mode the shortest route, in bus
+  // mode the walking option pinned to the bottom of the list.
+  const ref = S.mode === 'bus'
+    ? (S.routes.find(o => o.kind === 'foot') || S.routes[0])
+    : S.routes[0];
+  const refExp = ref ? ref.exposure : 0;
+
   $('cards').innerHTML = S.routes.map((o, i) => {
-    const cut = base.exposure > 0
-      ? Math.round((1 - o.r.exposure / base.exposure) * 100) : 0;
-    const sub = i === 0 || cut <= 0 ? o.hint : `${cut}% less exposure`;
+    const cut = refExp > 0 ? Math.round((1 - o.exposure / refExp) * 100) : 0;
+    const sub = (o === ref || cut <= 0) ? o.hint : `${cut}% less exposure`;
+    const intensity = optWalk(o) > 0 ? o.exposure / optWalk(o) : 0;
     return `<div class="rc${i === S.pick ? ' on' : ''}" data-i="${i}">
-      <span class="swatch" style="background:${bandColor(o.r.score / 100)}"></span>
+      <span class="swatch" style="background:${bandColor(intensity)}"></span>
       <span class="who"><b>${o.label}</b><small>${sub}</small></span>
-      <span class="num"><b>${fmtMin(o.r.dist)}</b><small>${fmtM(o.r.dist)} / ${Math.round(o.r.score)}</small></span>
+      <span class="num"><b>${Math.max(1, Math.round(optTime(o)))} min</b><small>${fmtM(optWalk(o))} walk / ${expUnits(o).toFixed(1)}</small></span>
     </div>`;
   }).join('');
   $('r-cards').style.display = '';
 }
 
-function select(i, fit = true) {
-  S.pick = i;
-  const sel = S.routes[i].r, base = S.routes[0].r;
-  [...$('cards').children].forEach((c, k) => c.classList.toggle('on', k === i));
+const stopName = si => T.names[T.stops[si][2]] || 'a stop';
 
+function routeExposureAt(r, b) {
+  let e = 0;
+  for (const ei of r.edges) e += S.ed[ei] * risk(ei, b);
+  return e;
+}
+
+function exposureAt(o, b) {
+  if (o.kind !== 'transit') return routeExposureAt(o.r, b);
+  const wr = firstEdgeAt(stopNode(o.bStop));
+  const sr = wr >= 0 ? risk(wr, b) : o.stopRisk;
+  return (o.legA ? routeExposureAt(o.legA, b) : 0)
+       + (o.legB ? routeExposureAt(o.legB, b) : 0)
+       + sr * WAIT_M_PER_MIN * o.waitMin;
+}
+
+function drawWalk(r, colour, weight) {
+  L.polyline(routeLatLngs(r), { color: '#fff', weight: weight + 3.5, opacity: .75,
+                                interactive: false }).addTo(routeLayer);
+  L.polyline(routeLatLngs(r), { color: colour, weight, opacity: 1,
+                                lineCap: 'round', interactive: false }).addTo(routeLayer);
+}
+
+function drawSelection(o) {
   routeLayer.clearLayers();
-  if (i !== 0) {
-    L.polyline(routeLatLngs(base), {
-      color: '#211f18', weight: 2.5, opacity: .5, dashArray: '3,6',
+  const ref = S.routes.find(x => x.kind === 'foot' && x.label === 'Shortest');
+  if (ref && ref !== o) {
+    L.polyline(routeLatLngs(ref.r), {
+      color: '#211f18', weight: 2.5, opacity: .45, dashArray: '3,6',
       interactive: false,
     }).addTo(routeLayer);
   }
-  L.polyline(routeLatLngs(sel), {
-    color: '#fff', weight: 8, opacity: .75, interactive: false,
-  }).addTo(routeLayer);
-  L.polyline(routeLatLngs(sel), {
-    color: '#3c7a4e', weight: 4.5, opacity: 1, lineCap: 'round',
-    interactive: false,
-  }).addTo(routeLayer);
+  if (o.kind !== 'transit') { drawWalk(o.r, '#3c7a4e', 4.5); return; }
 
-  // why
-  const ex = explain(sel, base, S.bucket);
+  if (o.legA) drawWalk(o.legA, '#3c7a4e', 4);
+  if (o.legB) drawWalk(o.legB, '#3c7a4e', 4);
+
+  for (const leg of o.legs) {
+    const pat = T.patterns[leg.pi];
+    const stops = pat.s.slice(leg.posA, leg.posB + 1);
+    const ride = stops.map(si => [T.stops[si][0], T.stops[si][1]]);
+    L.polyline(ride, { color: '#fff', weight: 9, opacity: .8, interactive: false })
+      .addTo(routeLayer);
+    L.polyline(ride, { color: '#211f18', weight: 5, opacity: 1, lineCap: 'round',
+                       interactive: false }).addTo(routeLayer);
+    for (const si of stops) {
+      L.circleMarker([T.stops[si][0], T.stops[si][1]], {
+        radius: 2.6, color: '#211f18', weight: 1, fillColor: '#e8e4d6',
+        fillOpacity: 1, interactive: false,
+      }).addTo(routeLayer);
+    }
+  }
+  // The transfer walk, drawn so a change of bus is visible rather than implied.
+  if (o.xfer && o.xfer.metres > 0) {
+    L.polyline([[T.stops[o.xfer.from][0], T.stops[o.xfer.from][1]],
+                [T.stops[o.xfer.to][0], T.stops[o.xfer.to][1]]], {
+      color: '#3c7a4e', weight: 3, opacity: .95, dashArray: '2,5',
+      interactive: false,
+    }).addTo(routeLayer);
+  }
+  const marks = [[o.bStop, 'Board'], [o.aStop, 'Get off']];
+  if (o.xfer) marks.push([o.xfer.to, 'Change here']);
+  for (const [si, lbl] of marks) {
+    L.circleMarker([T.stops[si][0], T.stops[si][1]], {
+      radius: 5.5, color: '#211f18', weight: 2, fillColor: '#c8912b', fillOpacity: 1,
+    }).bindTooltip(`${lbl}: ${stopName(si)}`, { direction: 'top' }).addTo(routeLayer);
+  }
+}
+
+function renderWhy(o) {
   const el = $('because');
-  el.className = 'because' + (ex.flat ? ' flat' : '');
-  el.innerHTML = ex.html;
-  $('r-because').style.display = '';
+  const walkRef = S.routes.find(x => x.kind === 'foot'
+    && (S.mode === 'bus' || x.label === 'Shortest'));
 
-  // same route at other hours
-  const vals = [0, 1, 2].map(b => scoreAt(sel, b));
-  const max = Math.max(...vals, 1);
+  if (o.kind === 'transit') {
+    const cut = walkRef && walkRef.exposure > 0
+      ? Math.round((1 - o.exposure / walkRef.exposure) * 100) : 0;
+    const ride = o.xfer
+      ? `ride <b>${o.routeLabel}</b> for <b>${Math.round(o.rideMin)} min</b> with `
+        + `one change at <span class="st">${stopName(o.xfer.to)}</span>`
+      : `ride <b>${o.routeLabel}</b> for <b>${Math.round(o.rideMin)} min</b>`;
+    const bits = [
+      `Walk <b>${fmtM(o.legA ? o.legA.dist : 0)}</b> to `
+      + `<span class="st">${stopName(o.bStop)}</span>, wait about `
+      + `<b>${Math.round(o.waitMin)} min</b> in total, then ${ride}, `
+      + `then walk <b>${fmtM(o.legB ? o.legB.dist : 0)}</b> at the other end.`,
+      `Only <b>${fmtM(o.dist)}</b> of this trip happens on the street.`,
+    ];
+    if (walkRef) {
+      bits.push(cut > 2
+        ? `Against walking the whole way, exposure drops <b>${cut}%</b>.`
+        : `That is about the same exposure as walking it, so take whichever suits you.`);
+    }
+    el.className = 'because' + (cut <= 2 ? ' flat' : '');
+    el.innerHTML = bits.join(' ');
+  } else {
+    const base = (S.routes.find(x => x.kind === 'foot' && x.label === 'Shortest') || o).r;
+    const ex = explain(o.r, base, S.bucket);
+    el.className = 'because' + (ex.flat ? ' flat' : '');
+    el.innerHTML = ex.html;
+  }
+  $('r-because').style.display = '';
+}
+
+function renderHours(o) {
+  const vals = [0, 1, 2].map(b => exposureAt(o, b) / 100);
+  const max = Math.max(...vals, 0.01);
   $('hours').innerHTML = vals.map((v, b) => `
     <div class="hrow${b === S.bucket ? ' now' : ''}">
       <span>${WINDOWS[b][0].toUpperCase() + WINDOWS[b].slice(1)}</span>
-      <span class="track"><i class="bar" style="width:${(v / max * 100).toFixed(1)}%;background:${bandColor(v / 100)}"></i></span>
-      <b>${Math.round(v)}</b>
+      <span class="track"><i class="bar" style="width:${(v / max * 100).toFixed(1)}%;background:${bandColor(optWalk(o) ? exposureAt(o, b) / optWalk(o) : 0)}"></i></span>
+      <b>${v.toFixed(1)}</b>
     </div>`).join('');
   const worst = vals.indexOf(Math.max(...vals));
   $('hours-note').textContent =
-    `Walking this same path is hardest in the ${WINDOWS[worst]} (${WINDOW_CLOCK[worst]}). `
-    + `Switching the window above re-runs the search, which often picks a different path.`;
+    `This same trip carries the most exposure in the ${WINDOWS[worst]} `
+    + `(${WINDOW_CLOCK[worst]}). Changing the window above re-runs the search, `
+    + `which often returns a different route entirely.`;
   $('r-hours').style.display = '';
+}
 
-  // street by street
-  const turns = turnList(sel, S.bucket);
-  $('turnlist').innerHTML = turns.slice(0, 60).map(t => `
-    <li><span>${t.label}</span><span class="m">${fmtM(t.len)}</span>
-    <span class="chip" style="color:${bandColor(t.worst)}">${Math.round(t.worst * 100)}</span></li>`).join('');
+const turnRow = (label, len, worst) =>
+  `<li><span>${label}</span><span class="m">${len}</span>`
+  + `<span class="chip" style="color:${bandColor(worst)}">${Math.round(worst * 100)}</span></li>`;
+
+function renderTurns(o) {
+  let html = '';
+  if (o.kind === 'transit') {
+    if (o.legA) {
+      html += turnList(o.legA, S.bucket).map(t =>
+        turnRow(t.label, fmtM(t.len), t.worst)).join('');
+    }
+    o.legs.forEach((leg, k) => {
+      const pat = T.patterns[leg.pi];
+      const board = pat.s[leg.posA], off = pat.s[leg.posB];
+      html += turnRow(`Board ${pat.r} at ${stopName(board)}`,
+                      `wait ${Math.round(pat.w)} min`, o.stopRisk);
+      html += turnRow(`Ride ${leg.posB - leg.posA} stops`,
+                      `${Math.round(Math.max(0, pat.t[leg.posB] - pat.t[leg.posA]) / 60)} min`, 0);
+      html += turnRow(`Get off at ${stopName(off)}`, '', o.stopRisk);
+      if (k === 0 && o.xfer && o.xfer.metres > 0) {
+        html += turnRow(`Walk to ${stopName(o.xfer.to)} to change`,
+                        fmtM(o.xfer.metres), o.stopRisk);
+      }
+    });
+    if (o.legB) {
+      html += turnList(o.legB, S.bucket).map(t =>
+        turnRow(t.label, fmtM(t.len), t.worst)).join('');
+    }
+  } else {
+    html = turnList(o.r, S.bucket).slice(0, 60).map(t =>
+      turnRow(t.label, fmtM(t.len), t.worst)).join('');
+  }
+  $('turnlist').innerHTML = html;
   $('r-turns').style.display = '';
+}
+
+function select(i, fit = true) {
+  S.pick = i;
+  const o = S.routes[i];
+  [...$('cards').children].forEach((c, k) => c.classList.toggle('on', k === i));
+
+  drawSelection(o);
+  renderWhy(o);
+  renderHours(o);
+  renderTurns(o);
   $('r-share').style.display = '';
 
   writeUrl();
@@ -716,6 +1105,7 @@ function writeUrl() {
   p.set('from', `${S.origin.lat.toFixed(5)},${S.origin.lon.toFixed(5)}`);
   p.set('to', S.school.id || `${S.school.lat.toFixed(5)},${S.school.lon.toFixed(5)}`);
   p.set('when', String(S.bucket));
+  p.set('mode', S.mode);
   p.set('pick', String(S.pick));
   history.replaceState(null, '', `${location.pathname}?${p}`);
 }
@@ -738,6 +1128,11 @@ function readUrl() {
   S.school = sc;
   $('school').value = sc.name;
 
+  const m = p.get('mode');
+  if (m === 'bus' || m === 'foot') {
+    S.mode = m;
+    [...$('mode').children].forEach(c => c.classList.toggle('on', c.dataset.m === m));
+  }
   const w = +p.get('when');
   if (w >= 0 && w <= 2) setWindow(w, false);
   const k = +p.get('pick');
@@ -766,6 +1161,14 @@ document.querySelector('.tabs').addEventListener('click', e => {
 $('when').addEventListener('click', e => {
   const d = e.target.closest('div[data-b]'); if (!d) return;
   setWindow(+d.dataset.b);
+});
+
+$('mode').addEventListener('click', e => {
+  const d = e.target.closest('div[data-m]'); if (!d) return;
+  S.mode = d.dataset.m;
+  [...$('mode').children].forEach(c => c.classList.toggle('on', c === d));
+  S.pick = 0;
+  if (S.origin && S.school) compute(false);
 });
 
 $('cards').addEventListener('click', e => {
@@ -871,12 +1274,20 @@ function windowForNow() {
 }
 
 async function boot() {
-  const [meta, schools, names] = await Promise.all([
+  const [meta, schools, names, transit] = await Promise.all([
     fetch('data/graph_meta.json').then(r => r.json()),
     fetch('data/schools.json').then(r => r.json()),
     fetch('data/street_names.json').then(r => r.json()),
+    fetch('data/transit.json').then(r => r.json()).catch(() => null),
   ]);
   S.meta = meta; S.schools = schools; S.names = names;
+  if (transit) initTransit(transit);
+  else {
+    // Without the feed the bus option cannot work, so retire it rather than
+    // leaving a control that silently does nothing.
+    const bus = document.querySelector('#mode div[data-m="bus"]');
+    if (bus) { bus.style.display = 'none'; }
+  }
   $('boot-sub').textContent =
     `${meta.crimes.toLocaleString()} incidents / ${meta.km.toLocaleString()} km of street`;
 

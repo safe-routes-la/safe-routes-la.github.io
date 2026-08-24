@@ -50,6 +50,30 @@ south southeast means 2.5 times the exposure of walking in from the east
 northeast. That is the version a principal or a council member can act on,
 rather than advice for one student.
 
+## Walking or riding
+
+The bus changes the problem rather than just the route. Minutes on board are
+minutes off the street, so for longer trips the calmest option is usually not a
+walking route at all.
+
+Switch to bus and rail and the app finds single-ride itineraries: walk to a
+stop, wait, ride, walk the rest. A real trip from south of USC up to LACES:
+
+| | Time | On foot | Exposure |
+|---|---|---|---|
+| Walking the whole way | 118 min | 9.34 km | 22.8 |
+| Route 35/38 | 43 min | 1.98 km | 8.1 |
+
+Faster and 65% less exposure, because only 1.98 km of it happens on a sidewalk.
+
+Waiting is treated honestly. Standing at a stop is exposure without progress, so
+a minute of waiting is charged like 80 m of walking on that block, which is
+above walking pace on purpose. A stop on a bad corner is not a safe place to
+spend eight minutes, and the model should not pretend otherwise.
+
+Transfers are out of scope. A student changing buses twice to shave exposure is
+advice nobody follows, and every extra leg adds another wait to stand through.
+
 ## How it works
 
 ### The data
@@ -60,6 +84,7 @@ rather than advice for one student.
 | [LA Bureau of Street Lighting](https://maps.lacity.org/lahub/rest/services/Bureau_of_Street_Lighting/MapServer) | Streetlight locations | 128,534 |
 | [California Department of Education](https://www.cde.ca.gov/ds/si/ds/pubschls.asp) | Public school locations | 668 in area |
 | [OpenStreetMap](https://www.openstreetmap.org) via Overpass | Walkable street network | 431,599 blocks |
+| [LA Metro GTFS](https://developer.metro.net/gtfs-schedule-data/) bus and rail | Stops, ride times, headways | 5,395 stops |
 
 ### What we threw away
 
