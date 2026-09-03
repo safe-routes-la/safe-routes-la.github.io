@@ -22,6 +22,18 @@ third. Everything below shipped afterwards.
   the 5 MB scored graph on the device after the first visit, and the site
   installs to a home screen (`manifest.webmanifest`). A student with no data
   plan can still plan a walk; only the basemap tiles are missing offline.
+- **Cross streets, on the device.** "Hauser & Venice", "Pico / La Brea",
+  "wilshire at western" resolve from the street graph itself: an intersection
+  is a node shared by a block of each name. Instant, exact to the graph the
+  router uses, and offline. Abbreviations (blvd, ave, st) are understood.
+- **Address lookup hardened.** A keystroke cancels the request in the air,
+  Photon backs up Nominatim when it is empty or rate-limited, and a failed
+  lookup says so instead of pretending nothing matched.
+- **Use my location.** One tap starts the route from where the student is
+  standing, with a check that they are inside the map area.
+- **Small things.** Results scroll into view when a trip is planned, a "start
+  over" link clears everything, the explanation never says "skips Venice,
+  goes along Venice instead" when both sides of a boulevard share a name.
 - **Report a problem.** Every route carries a link that opens a pre-filled
   issue with the trip attached, so a student or parent who knows a block
   better than the data does has somewhere to say so.

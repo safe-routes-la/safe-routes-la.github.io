@@ -11,6 +11,7 @@ const NO_NAME = 0xFFFF;
 const WALK_MPS = 1.32;           // about 3 mph, an unhurried kid
 const MAX_DRAW = 22000;          // viewport budget for the risk layer
 const NOMINATIM = 'https://nominatim.openstreetmap.org/search';
+const PHOTON = 'https://photon.komoot.io/api/';
 
 /* Named options rather than a slider. A slider invites fiddling and never says
  * what its ends mean, while a route you can point at is a choice you can make.
@@ -59,6 +60,14 @@ const EN = {
   'toast.copyfail': 'Copy failed. The address bar holds the link.',
   'toast.print': 'Pick a route first.',
   'ac.none': 'Nothing found for that',
+  'ac.busy': 'Searching…',
+  'ac.offline': 'Offline: addresses cannot be looked up. Type two cross streets, or tap the map.',
+  'ac.xstreet': 'cross streets',
+  'geo.wait': 'Finding your location…',
+  'geo.here': 'My location',
+  'toast.nogeo': 'This browser does not share location.',
+  'toast.geoout': 'You are outside the map area, which covers central Los Angeles.',
+  'toast.geofail': 'Could not get your location. Check the browser permission.',
 
   'mode.none': 'Nothing within a 900 m walk of both ends shares one route, so these are '
     + 'walking options. Transfers are out of scope: each change adds another wait to stand through.',
@@ -479,7 +488,12 @@ function explain(sel, base, bucket) {
                                 n: Math.round(a.worst * 100) }));
   }
   if (taken.length) {
-    const tk = taken.find(x => x.name !== ' unnamed') || taken[0];
+    // Prefer naming a street that differs from the one avoided: sidewalks on
+    // both sides of a boulevard share its name, and "skips Venice, goes along
+    // Venice instead" is true but reads as nonsense.
+    const avoidedName = avoided.length ? avoided[0].name : null;
+    const tk = taken.find(x => x.name !== ' unnamed' && x.name !== avoidedName)
+            || taken.find(x => x.name !== ' unnamed') || taken[0];
     parts.push(t('why.along', { st: streetLabel(tk), n: Math.round(tk.worst * 100) }));
   }
   const cost = extra < 15
@@ -925,9 +939,60 @@ function compute(fit = true) {
   S.routes = opts;
   if (S.pick >= opts.length) S.pick = opts.length - 1;
   $('intro').style.display = 'none';
+  $('clear-wrap').style.display = '';
   renderCards();
   select(S.pick, fit);
+  // On a phone the results sit below the fold of the sidebar; bring them up
+  // when a trip is first planned, not on every window or mode change.
+  if (fit) {
+    const panes = document.querySelector('.panes');
+    const top = panes.scrollTop + $('r-cards').getBoundingClientRect().top
+              - panes.getBoundingClientRect().top - 6;
+    panes.scrollTo({ top, behavior: 'smooth' });
+  }
 }
+
+function clearTrip() {
+  S.routes = null; S.origin = null; S.pick = 2;
+  if (!S.preset) S.school = null;
+  routeLayer.clearLayers(); spokeLayer.clearLayers();
+  redrawPins();
+  $('origin').value = '';
+  if (!S.preset) $('school').value = '';
+  for (const id of ['r-cards', 'r-because', 'r-hours', 'r-turns', 'r-share']) $(id).style.display = 'none';
+  $('clear-wrap').style.display = 'none';
+  $('intro').style.display = S.embed ? 'none' : '';
+  $('go').disabled = true;
+  const p = new URLSearchParams();
+  if (S.preset) p.set('school', S.preset.id);
+  if (S.lang !== 'en') p.set('lang', S.lang);
+  if (S.embed) p.set('embed', '1');
+  const qs = p.toString();
+  history.replaceState(null, '', location.pathname + (qs ? `?${qs}` : ''));
+  document.querySelector('.panes').scrollTo({ top: 0, behavior: 'smooth' });
+  if (S.school) map.setView([S.school.lat, S.school.lon], 15);
+}
+$('clear').addEventListener('click', clearTrip);
+
+/* ----------------------------------------------------------- geolocation */
+$('locate').addEventListener('click', () => {
+  if (!navigator.geolocation) { toast(t('toast.nogeo')); return; }
+  const btn = $('locate');
+  btn.disabled = true; btn.textContent = t('geo.wait');
+  const done = () => { btn.disabled = false; applyLang(); };
+  navigator.geolocation.getCurrentPosition(pos => {
+    done();
+    const lat = pos.coords.latitude, lon = pos.coords.longitude;
+    const b = S.meta.bbox;
+    if (lat < b.south || lat > b.north || lon < b.west || lon > b.east) { toast(t('toast.geoout')); return; }
+    S.origin = { lat, lon };
+    $('origin').value = t('geo.here');
+    redrawPins();
+    $('go').disabled = !S.school;
+    if (S.school) compute(); else map.setView([lat, lon], 15);
+  }, () => { done(); toast(t('toast.geofail')); },
+  { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 });
+});
 
 function renderCards() {
   // Compare against the plain walk: in foot mode the shortest route, in bus
@@ -1175,11 +1240,16 @@ function renderReport() {
 }
 
 /* --------------------------------------------------------- autocomplete */
-function attachAC(inputId, listId, search, onPick) {
+function attachAC(inputId, listId, search, onPick, opts = {}) {
   const input = $(inputId), list = $(listId);
-  let items = [], sel = -1, timer = null;
+  let items = [], sel = -1, timer = null, inflight = null;
 
   const close = () => { list.classList.remove('on'); sel = -1; };
+  const note = (cls, msg) => {
+    items = [];
+    list.innerHTML = `<div class="${cls}">${msg}</div>`;
+    list.classList.add('on');
+  };
   const render = () => {
     if (!items.length) { close(); return; }
     list.innerHTML = items.map((it, i) =>
@@ -1190,19 +1260,28 @@ function attachAC(inputId, listId, search, onPick) {
 
   input.addEventListener('input', () => {
     clearTimeout(timer);
+    // A keystroke cancels the lookup already in the air, so results never
+    // arrive out of order and a remote geocoder sees one request per pause.
+    if (inflight) { inflight.abort(); inflight = null; }
     const q = input.value.trim();
     if (q.length < 2) { items = []; close(); return; }
     timer = setTimeout(async () => {
+      const ctl = new AbortController();
+      inflight = ctl;
+      if (opts.remote) note('busy', t('ac.busy'));
       try {
-        items = (await search(q)) || [];
-      } catch (e) { items = []; }
-      if (!items.length) {
-        list.innerHTML = `<div class="none">${t('ac.none')}</div>`;
-        list.classList.add('on');
+        items = (await search(q, ctl.signal)) || [];
+      } catch (e) {
+        if (e.name === 'AbortError') return;
+        note('none', e.offline ? t('ac.offline') : t('ac.none'));
         return;
+      } finally {
+        if (inflight === ctl) inflight = null;
       }
+      if (ctl.signal.aborted) return;
+      if (!items.length) { note('none', t('ac.none')); return; }
       sel = -1; render();
-    }, 260);
+    }, opts.remote ? 420 : 200);
   });
 
   input.addEventListener('keydown', e => {
@@ -1231,25 +1310,152 @@ const searchSchools = q => {
     .map(s => ({ label: s.name, sub: `${s.level} / ${s.city}`, school: s }));
 };
 
-/* Addresses go through Nominatim, bounded to the study area so a search for
- * "Main Street" lands in Los Angeles rather than Ohio. */
-async function searchPlaces(q) {
+/* ------------------------------------------------------- cross streets */
+/* "Hauser & Venice" is how people in Los Angeles actually say where they are,
+ * and it is the one kind of place a geocoder handles badly. The graph already
+ * carries a name for most blocks, so an intersection is just a node shared by
+ * a block of one name and a block of the other. That makes this instant,
+ * exact to the graph the router uses, and available offline. */
+const XSTREET_RE = /^\s*(.+?)(?:\s*[&\/+@]\s*|\s+(?:and|at|y|con)\s+)(.+?)\s*$/i;
+const ABBREV = {
+  blvd: 'boulevard', bl: 'boulevard', ave: 'avenue', av: 'avenue', st: 'street',
+  dr: 'drive', pl: 'place', rd: 'road', hwy: 'highway', pkwy: 'parkway',
+  ln: 'lane', ct: 'court', ter: 'terrace', n: 'north', s: 'south', e: 'east',
+  w: 'west',
+};
+const normName = s => s.toLowerCase().replace(/[.,']/g, ' ').split(/\s+/)
+  .filter(Boolean).map(w => ABBREV[w] || w).join(' ');
+
+function nameIndex() {
+  if (S.nameEdges) return S.nameEdges;
+  const m = new Map();
+  const len = new Float64Array(S.names.length);
+  for (let i = 0; i < S.nEdges; i++) {
+    const n = S.ename[i];
+    if (n === NO_NAME) continue;
+    let a = m.get(n); if (!a) m.set(n, a = []);
+    a.push(i);
+    len[n] += S.ed[i];
+  }
+  S.nameEdges = m;
+  S.nameLen = len;
+  S.nameNorm = S.names.map(normName);
+  return m;
+}
+
+/* Street names matching one typed side, best first: whole-word matches beat
+ * substring matches, then the street with the most mapped length wins, so
+ * "Pico" means West Pico Boulevard rather than Pico Place. */
+function matchStreets(part) {
+  const q = normName(part);
+  if (q.length < 3) return [];
+  const idx = nameIndex();
+  const out = [];
+  for (const [n] of idx) {
+    const nm = S.nameNorm[n];
+    if (!nm.includes(q)) continue;
+    const word = new RegExp(`(^|\\s)${q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\s|$)`).test(nm);
+    out.push({ n, score: (word ? 0 : 1e9) - S.nameLen[n] });
+  }
+  return out.sort((a, b) => a.score - b.score).slice(0, 8).map(x => x.n);
+}
+
+function crossStreets(q) {
+  const m = XSTREET_RE.exec(q);
+  if (!m || !S.ename) return [];
+  const A = matchStreets(m[1]), B = matchStreets(m[2]);
+  if (!A.length || !B.length) return [];
+  const idx = nameIndex();
+  const out = [], seenPair = new Set();
+  for (const a of A) {
+    const nodesA = new Set();
+    for (const ei of idx.get(a)) { nodesA.add(S.eu[ei]); nodesA.add(S.ev[ei]); }
+    for (const b of B) {
+      if (a === b) continue;
+      const key = a < b ? `${a}|${b}` : `${b}|${a}`;
+      if (seenPair.has(key)) continue;
+      // Sidewalks are mapped as separate ways, so one crossing yields several
+      // shared nodes a few metres apart. Cluster them and keep the centre of
+      // the biggest cluster, which is the real intersection.
+      const hits = [];
+      for (const ei of idx.get(b)) {
+        for (const v of [S.eu[ei], S.ev[ei]]) if (nodesA.has(v)) hits.push(v);
+      }
+      if (!hits.length) continue;
+      seenPair.add(key);
+      const clusters = [];
+      for (const v of hits) {
+        const lat = S.nLat[v], lon = S.nLon[v];
+        let c = clusters.find(x => metres(x.lat, x.lon, lat, lon) < 90);
+        if (!c) clusters.push(c = { lat, lon, n: 0, slat: 0, slon: 0 });
+        c.n++; c.slat += lat; c.slon += lon; c.lat = c.slat / c.n; c.lon = c.slon / c.n;
+      }
+      clusters.sort((x, y) => y.n - x.n);
+      const c = clusters[0];
+      out.push({ label: `${S.names[a]} &amp; ${S.names[b]}`, sub: t('ac.xstreet'),
+                 lat: c.lat, lon: c.lon, xstreet: true });
+      if (out.length >= 6) return out;
+    }
+  }
+  return out;
+}
+
+/* Remote geocoding. Nominatim first, bounded to the study area so "Main
+ * Street" lands in Los Angeles rather than Ohio; Photon as a second opinion
+ * when Nominatim is empty, rate-limited or down. Both are free public
+ * services, which is why a keystroke cancels the previous request and the
+ * cross-street path above never touches them at all. */
+async function geocode(q, signal) {
   const b = S.meta.bbox;
-  const url = `${NOMINATIM}?format=jsonv2&limit=6&addressdetails=0`
-    + `&countrycodes=us&bounded=1`
-    + `&viewbox=${b.west},${b.north},${b.east},${b.south}`
-    + `&q=${encodeURIComponent(q)}`;
-  const res = await fetch(url, { headers: { 'Accept-Language': 'en' } });
-  if (!res.ok) throw new Error('lookup failed');
-  const j = await res.json();
-  return j.map(p => {
-    const bits = p.display_name.split(',').map(s => s.trim());
-    return {
-      label: bits.slice(0, 2).join(', '),
-      sub: bits.slice(2, 5).join(', '),
-      lat: +p.lat, lon: +p.lon,
-    };
-  });
+  const inside = p => p.lat >= b.south && p.lat <= b.north && p.lon >= b.west && p.lon <= b.east;
+
+  const nominatim = async () => {
+    const url = `${NOMINATIM}?format=jsonv2&limit=6&addressdetails=0`
+      + `&countrycodes=us&bounded=1`
+      + `&viewbox=${b.west},${b.north},${b.east},${b.south}`
+      + `&accept-language=${S.lang === 'es' ? 'es' : 'en'}`
+      + `&q=${encodeURIComponent(q)}`;
+    const res = await fetch(url, { signal });
+    if (!res.ok) throw new Error(`nominatim ${res.status}`);
+    return (await res.json()).map(p => {
+      const bits = p.display_name.split(',').map(x => x.trim());
+      return { label: bits.slice(0, 2).join(', '), sub: bits.slice(2, 5).join(', '),
+               lat: +p.lat, lon: +p.lon };
+    }).filter(inside);
+  };
+
+  const photon = async () => {
+    const url = `${PHOTON}?q=${encodeURIComponent(q)}&limit=6&lang=en`
+      + `&bbox=${b.west},${b.south},${b.east},${b.north}`
+      + `&lat=${((b.south + b.north) / 2).toFixed(4)}&lon=${((b.west + b.east) / 2).toFixed(4)}`;
+    const res = await fetch(url, { signal });
+    if (!res.ok) throw new Error(`photon ${res.status}`);
+    return ((await res.json()).features || []).map(f => {
+      const p = f.properties || {}, [lon, lat] = f.geometry.coordinates;
+      const line1 = p.housenumber && p.street ? `${p.housenumber} ${p.street}` : (p.name || p.street || '');
+      const line2 = [p.district, p.city || p.county, p.postcode].filter(Boolean).join(', ');
+      return { label: line1 || line2, sub: line1 ? line2 : '', lat, lon };
+    }).filter(p => p.label && inside(p));
+  };
+
+  let failures = 0;
+  for (const fn of [nominatim, photon]) {
+    try {
+      const r = await fn();
+      if (r.length) return r;
+    } catch (e) {
+      if (e.name === 'AbortError') throw e;
+      failures++;
+    }
+  }
+  if (failures === 2) { const err = new Error('lookup unavailable'); err.offline = true; throw err; }
+  return [];
+}
+
+async function searchPlaces(q, signal) {
+  const local = crossStreets(q);
+  if (local.length) return local;
+  return geocode(q, signal);
 }
 
 /* ------------------------------------------------------------ url state */
@@ -1632,11 +1838,11 @@ async function boot() {
 
   attachAC('origin', 'ac-origin', searchPlaces, it => {
     S.origin = { lat: it.lat, lon: it.lon };
-    $('origin').value = it.label;
+    $('origin').value = it.label.replace(/&amp;/g, '&');
     redrawPins();
     $('go').disabled = !S.school;
-    if (S.school) compute();
-  });
+    if (S.school) compute(); else map.setView([it.lat, it.lon], 15);
+  }, { remote: true });
 
   attachAC('rc-school', 'ac-rc', q => searchSchools(q), it => {
     S.rcSchool = it.school;

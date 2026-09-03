@@ -105,6 +105,21 @@
   .ac div:hover small,.ac div.sel small{color:var(--card-2)}
   .ac .none{color:var(--faint); cursor:default}
   .ac .none:hover{background:transparent; color:var(--faint)}
+  .ac .busy{color:var(--faint); cursor:default; font-style:italic}
+  .ac .busy:hover{background:transparent; color:var(--faint)}
+  /* A note is not a choice, so let clicks pass through to what sits under it. */
+  .ac .none,.ac .busy{pointer-events:none}
+
+  /* Text-only buttons for secondary actions beside a field. */
+  button.link{
+    background:none; border:none; padding:0; cursor:pointer; color:var(--ink);
+    font-family:var(--sans); font-size:11.5px; text-decoration:underline;
+    text-underline-offset:2px; text-decoration-color:var(--rule-2);
+  }
+  button.link:hover{text-decoration-color:var(--ink)}
+  button.link:disabled{color:var(--faint); cursor:default; text-decoration:none}
+  .fld > span.cap{display:flex; justify-content:space-between; align-items:baseline; gap:8px}
+  .rowb{display:flex; justify-content:center; align-items:center; margin:9px 0 0}
 
   .seg{display:flex; border:1px solid var(--rule-2)}
   .seg div{
@@ -466,12 +481,14 @@
             <div class="ac" id="ac-school"></div>
           </label>
           <label class="fld" style="margin-bottom:7px">
-            <span data-t="walk.from">Starting from</span>
-            <input type="text" id="origin" placeholder="Address, or cross streets" data-tp="ph.origin" autocomplete="off">
+            <span class="cap"><span data-t="walk.from">Starting from</span>
+              <button type="button" class="link" id="locate" data-t="walk.locate">Use my location</button></span>
+            <input type="text" id="origin" placeholder="Address, or cross streets like Hauser &amp; Venice" data-tp="ph.origin" autocomplete="off">
             <div class="ac" id="ac-origin"></div>
           </label>
-          <p class="note" data-t="walk.note">Addresses are looked up through OpenStreetMap. You can
-             also click the map to drop a pin.</p>
+          <p class="note" data-t="walk.note">Two cross streets, like <b>Hauser &amp; Venice</b>, are
+             found on this device and work offline. Full addresses are looked up
+             through OpenStreetMap. You can also click the map to drop a pin.</p>
         </div>
 
         <div class="sec">
@@ -497,6 +514,9 @@
 
         <div class="sec" id="go-wrap">
           <button class="act" id="go" disabled data-t="go">Compare routes</button>
+          <div class="rowb" id="clear-wrap" style="display:none">
+            <button type="button" class="link" id="clear" data-t="clear">Start over</button>
+          </div>
         </div>
 
         <!-- results -->
