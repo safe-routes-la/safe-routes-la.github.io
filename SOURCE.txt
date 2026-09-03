@@ -5,37 +5,37 @@ Complete source code
 
 Live      https://safe-routes-la.github.io
 Repo      https://github.com/safe-routes-la/safe-routes-la.github.io
-Exported  2026-08-24
+Exported  2026-09-03
 
 Walking and transit directions for Los Angeles students, built from
 where students actually get robbed rather than from distance alone.
 
 No frameworks, no build step, no backend. The pipeline is plain Python
-with numpy and scipy; the front end is one HTML file and one JS file.
+with numpy and scipy; the front end is HTML, one JS file, a Spanish file
+and a service worker. Leaflet (vendor/leaflet/, BSD-2) is not included.
 
 ------------------------------------------------------------------------------
 CONTENTS
 ------------------------------------------------------------------------------
- 1. pipeline/config.py              72 lines   Study area, crime filters and every model weight
- 2. pipeline/geo.py                 37 lines   Local planar projection and polyline helpers
- 3. pipeline/fetch_crime.py         59 lines   LAPD violent-crime incidents via the Socrata API
- 4. pipeline/fetch_lights.py        71 lines   Streetlights via the city ArcGIS MapServer
- 5. pipeline/fetch_schools.py       68 lines   Public school locations from the state directory
- 6. pipeline/fetch_osm.py           99 lines   Walkable street network, tiled across Overpass mirrors
- 7. pipeline/fetch_transit.py      172 lines   LA Metro bus and rail GTFS reduced to stops and patterns
- 8. pipeline/build_graph.py        507 lines   Intersection splitting, risk model, binary packing
- 9. pipeline/validate.py           227 lines   Graph checks and the A* optimality proof
-10. index.html                     701 lines   The entire interface: markup and design system
-11. app.js                        1355 lines   Client-side router, transit planner, map and UI
+ 1. pipeline/config.py                72 lines   Study area, crime filters and every model weight
+ 2. pipeline/geo.py                   37 lines   Local planar projection and polyline helpers
+ 3. pipeline/fetch_crime.py           59 lines   LAPD violent-crime incidents via the Socrata API
+ 4. pipeline/fetch_lights.py          71 lines   Streetlights via the city ArcGIS MapServer
+ 5. pipeline/fetch_schools.py         68 lines   Public school locations from the state directory
+ 6. pipeline/fetch_osm.py             99 lines   Walkable street network, tiled across Overpass mirrors
+ 7. pipeline/fetch_transit.py        172 lines   LA Metro bus and rail GTFS reduced to stops and patterns
+ 8. pipeline/build_graph.py          507 lines   Intersection splitting, risk model, binary packing
+ 9. pipeline/validate.py             227 lines   Graph checks and the A* optimality proof
+10. index.html                       833 lines   The entire interface: markup and design system
+11. app.js                          1687 lines   Client-side router, transit planner, map and UI
+12. es.js                            224 lines   Spanish: every string the interface shows
+13. sw.js                             68 lines   Offline copy: the page and the graph stay on the device
 
-    TOTAL                         3368 lines
+    4124 lines in 13 files
 
-Data files are not included here because they are generated, not
-written: graph.bin (10.8 MB), transit.json, schools.json and
-street_names.json all come out of the pipeline above.
 
 ==============================================================================
-FILE 1 of 11   pipeline/config.py
+FILE 1 of 13   pipeline/config.py
 Study area, crime filters and every model weight
 ==============================================================================
 
@@ -112,9 +112,8 @@ def in_bbox(lat, lon):
     return (BBOX["south"] <= lat <= BBOX["north"]
             and BBOX["west"] <= lon <= BBOX["east"])
 
-
 ==============================================================================
-FILE 2 of 11   pipeline/geo.py
+FILE 2 of 13   pipeline/geo.py
 Local planar projection and polyline helpers
 ==============================================================================
 
@@ -156,9 +155,8 @@ def densify(xs, ys, step=25.0):
     t = np.linspace(0.0, total, n)
     return np.interp(t, cum, xs), np.interp(t, cum, ys), total
 
-
 ==============================================================================
-FILE 3 of 11   pipeline/fetch_crime.py
+FILE 3 of 13   pipeline/fetch_crime.py
 LAPD violent-crime incidents via the Socrata API
 ==============================================================================
 
@@ -222,9 +220,8 @@ if __name__ == "__main__":
         json.dump(rows, f)
     print(f"wrote {len(rows):,} incidents -> {path}", flush=True)
 
-
 ==============================================================================
-FILE 4 of 11   pipeline/fetch_lights.py
+FILE 4 of 13   pipeline/fetch_lights.py
 Streetlights via the city ArcGIS MapServer
 ==============================================================================
 
@@ -300,9 +297,8 @@ def main():
 if __name__ == "__main__":
     main()
 
-
 ==============================================================================
-FILE 5 of 11   pipeline/fetch_schools.py
+FILE 5 of 13   pipeline/fetch_schools.py
 Public school locations from the state directory
 ==============================================================================
 
@@ -375,9 +371,8 @@ if __name__ == "__main__":
     for lvl, n in Counter(s["level"] for s in schools).most_common():
         print(f"   {n:5}  {lvl}")
 
-
 ==============================================================================
-FILE 6 of 11   pipeline/fetch_osm.py
+FILE 6 of 13   pipeline/fetch_osm.py
 Walkable street network, tiled across Overpass mirrors
 ==============================================================================
 
@@ -481,9 +476,8 @@ def main():
 if __name__ == "__main__":
     main()
 
-
 ==============================================================================
-FILE 7 of 11   pipeline/fetch_transit.py
+FILE 7 of 13   pipeline/fetch_transit.py
 LA Metro bus and rail GTFS reduced to stops and patterns
 ==============================================================================
 
@@ -660,9 +654,8 @@ def main():
 if __name__ == "__main__":
     main()
 
-
 ==============================================================================
-FILE 8 of 11   pipeline/build_graph.py
+FILE 8 of 13   pipeline/build_graph.py
 Intersection splitting, risk model, binary packing
 ==============================================================================
 
@@ -1174,9 +1167,8 @@ def main():
 if __name__ == "__main__":
     main()
 
-
 ==============================================================================
-FILE 9 of 11   pipeline/validate.py
+FILE 9 of 13   pipeline/validate.py
 Graph checks and the A* optimality proof
 ==============================================================================
 
@@ -1408,9 +1400,8 @@ def main():
 if __name__ == "__main__":
     main()
 
-
 ==============================================================================
-FILE 10 of 11   index.html
+FILE 10 of 13   index.html
 The entire interface: markup and design system
 ==============================================================================
 
@@ -1420,8 +1411,12 @@ The entire interface: markup and design system
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Safe Routes to School / Los Angeles</title>
+<meta name="theme-color" content="#e8e4d6">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
 <meta name="description" content="Walking directions for Los Angeles students built from 85,634 real violent-crime records, so the route accounts for where students actually get hurt and not just which way is shortest.">
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -1755,22 +1750,103 @@ The entire interface: markup and design system
     #side{border-right:none; border-bottom:1px solid var(--rule-2)}
     #legend{right:10px; bottom:12px; min-width:0; padding:9px 11px}
   }
+
+  /* --------------------------------------------------------- language */
+  .masthead{position:relative}
+  #lang{
+    position:absolute; top:18px; right:22px; display:flex; gap:0;
+    border:1px solid var(--rule-2); font-family:var(--mono); font-size:9.5px;
+    letter-spacing:.1em;
+  }
+  #lang span{padding:4px 7px; cursor:pointer; color:var(--faint); user-select:none}
+  #lang span:hover{color:var(--ink)}
+  #lang span.on{background:var(--ink); color:var(--paper)}
+
+  /* ------------------------------------------------------------ network */
+  #net{display:none; font-family:var(--mono); font-size:9.5px; letter-spacing:.1em;
+       text-transform:uppercase; color:var(--faint); margin-top:8px}
+  #net.show{display:block}
+  #net b{color:var(--ink); font-weight:600}
+
+  /* ---------------------------------------------------- actions on a route */
+  .actions{display:grid; grid-template-columns:1fr 1fr; gap:7px}
+  .actions button{width:100%}
+  .actions a.ghost{
+    display:block; grid-column:1 / -1; text-align:center; text-decoration:none;
+    padding:9px; border:1px solid var(--rule-2); color:var(--dim); font-size:12px;
+  }
+  .actions a.ghost:hover{border-color:var(--ink); color:var(--ink)}
+
+  /* ------------------------------------------------------------- snippet */
+  textarea.snippet{
+    width:100%; height:86px; resize:vertical; background:#f4f0e4;
+    border:1px solid var(--rule-2); color:var(--ink); padding:8px 10px;
+    font-family:var(--mono); font-size:10.5px; line-height:1.5; outline:none;
+  }
+  textarea.snippet:focus{border-color:var(--ink)}
+
+  /* ---------------------------------------------------------------- embed */
+  body.embed .masthead p, body.embed .tabs, body.embed #intro,
+  body.embed #r-embed{display:none}
+  body.embed .masthead{padding:14px 24px 12px}
+  body.embed .masthead h1{font-size:20px}
+  body.embed .masthead h1 em{font-size:15px}
+  body.embed #lang{top:12px}
+  .preset{
+    font-size:11.5px; color:var(--dim); line-height:1.5; padding:9px 11px;
+    border:1px solid var(--rule-2); background:#f4f0e4; margin-bottom:12px;
+  }
+  .preset b{color:var(--ink); font-weight:600}
+  .preset a{color:var(--ink)}
+
+  /* ------------------------------------------------------------ print card */
+  #printcard{display:none}
+  @media print{
+    @page{margin:14mm}
+    html,body{height:auto; overflow:visible; background:#fff; color:#000}
+    #app{display:none!important}
+    #printcard{display:block; font-family:Georgia,'Times New Roman',serif; color:#000; max-width:170mm}
+    #printcard .k{font-family:'Courier New',monospace; font-size:9pt; letter-spacing:.12em; text-transform:uppercase; color:#555; margin-bottom:4pt}
+    #printcard h1{font-size:20pt; margin:0 0 2pt; line-height:1.1}
+    #printcard h1 small{display:block; font-size:12pt; font-weight:normal; color:#444; margin-top:2pt}
+    #printcard .meta{font-size:10.5pt; color:#333; margin:6pt 0 10pt; line-height:1.5}
+    #printcard table.sum{width:100%; border-collapse:collapse; margin:8pt 0 10pt; font-size:11pt}
+    #printcard table.sum td{padding:4pt 6pt 4pt 0; border-bottom:1px solid #bbb}
+    #printcard table.sum td:last-child{text-align:right; font-family:'Courier New',monospace; font-weight:bold}
+    #printcard .why{border-left:3pt solid #000; padding:2pt 0 2pt 9pt; font-size:11pt; line-height:1.5; margin:8pt 0 12pt}
+    #printcard h2{font-family:'Courier New',monospace; font-size:9pt; letter-spacing:.12em; text-transform:uppercase; color:#555; margin:12pt 0 5pt; font-weight:normal}
+    #printcard ol{list-style:none; padding:0; margin:0}
+    #printcard ol li{display:grid; grid-template-columns:1fr auto auto; gap:10pt; padding:3.5pt 0; border-bottom:1px solid #ddd; font-size:10.5pt; page-break-inside:avoid}
+    #printcard ol li .m{font-family:'Courier New',monospace; color:#444}
+    #printcard ol li .c{font-family:'Courier New',monospace; border:1px solid #000; padding:0 4pt; min-width:22pt; text-align:center}
+    #printcard .hours{margin:6pt 0}
+    #printcard .hours div{display:grid; grid-template-columns:70pt 1fr 32pt; gap:8pt; align-items:center; font-size:10pt; margin:3pt 0}
+    #printcard .hours .t{height:8pt; background:#eee; position:relative}
+    #printcard .hours .t i{display:block; height:8pt; background:#000}
+    #printcard .hours b{font-family:'Courier New',monospace; text-align:right}
+    #printcard .foot{margin-top:14pt; padding-top:8pt; border-top:1px solid #000; font-size:9pt; color:#444; line-height:1.5}
+    #printcard .foot .url{font-family:'Courier New',monospace; word-break:break-all; color:#000}
+  }
 </style>
 </head>
 <body>
 <div id="app">
   <aside id="side">
     <div class="masthead">
-      <div class="kicker">Los Angeles / 2020&ndash;2024</div>
-      <h1>Safe Routes<em>to School</em></h1>
-      <p>Walking directions built from where students actually get robbed,
+      <div class="kicker" data-t="kicker">Los Angeles / 2020&ndash;2024</div>
+      <div id="lang" title="Language / Idioma">
+        <span class="on" data-l="en">EN</span><span data-l="es">ES</span>
+      </div>
+      <h1>Safe Routes<em data-t="h1sub">to School</em></h1>
+      <p data-t="tagline">Walking directions built from where students actually get robbed,
          rather than from distance alone.</p>
+      <div id="net"></div>
     </div>
 
     <div class="tabs">
-      <div class="tab on" data-p="route">Route</div>
-      <div class="tab" data-p="school">School</div>
-      <div class="tab" data-p="method">Method</div>
+      <div class="tab on" data-p="route" data-t="tab.route">Route</div>
+      <div class="tab" data-p="school" data-t="tab.school">School</div>
+      <div class="tab" data-p="method" data-t="tab.method">Method</div>
     </div>
 
     <div class="panes">
@@ -1778,93 +1854,102 @@ The entire interface: markup and design system
       <div class="pane on" id="p-route">
 
         <div class="sec" id="intro">
-          <h2>How to use this</h2>
+          <h2 data-t="intro.h">How to use this</h2>
           <ol class="steps">
-            <li>Pick the <b>school</b> you walk to.</li>
-            <li>Type the <b>address or cross streets</b> you start from, or
+            <li data-t="intro.1">Pick the <b>school</b> you walk to.</li>
+            <li data-t="intro.2">Type the <b>address or cross streets</b> you start from, or
                 click anywhere on the map.</li>
-            <li>Compare the <b>three routes</b> it offers and pick one.</li>
+            <li data-t="intro.3">Compare the <b>three routes</b> it offers and pick one.</li>
           </ol>
-          <button class="ghost" id="demo">Show me a worked example</button>
+          <button class="ghost" id="demo" data-t="intro.demo">Show me a worked example</button>
         </div>
 
         <div class="sec">
-          <h2>The walk</h2>
+          <h2 data-t="walk.h">The walk</h2>
+          <div class="preset" id="preset" style="display:none"></div>
           <label class="fld">
-            <span>School</span>
-            <input type="text" id="school" placeholder="Start typing a school name" autocomplete="off">
+            <span data-t="walk.school">School</span>
+            <input type="text" id="school" placeholder="Start typing a school name" data-tp="ph.school" autocomplete="off">
             <div class="ac" id="ac-school"></div>
           </label>
           <label class="fld" style="margin-bottom:7px">
-            <span>Starting from</span>
-            <input type="text" id="origin" placeholder="Address, or cross streets" autocomplete="off">
+            <span data-t="walk.from">Starting from</span>
+            <input type="text" id="origin" placeholder="Address, or cross streets" data-tp="ph.origin" autocomplete="off">
             <div class="ac" id="ac-origin"></div>
           </label>
-          <p class="note">Addresses are looked up through OpenStreetMap. You can
+          <p class="note" data-t="walk.note">Addresses are looked up through OpenStreetMap. You can
              also click the map to drop a pin.</p>
         </div>
 
         <div class="sec">
-          <h2>Time of day</h2>
+          <h2 data-t="when.h">Time of day</h2>
           <div class="seg" id="when">
-            <div data-b="0"><b>Morning</b><small>5am to 10am</small></div>
-            <div data-b="1"><b>Afternoon</b><small>10am to 5pm</small></div>
-            <div data-b="2"><b>Evening</b><small>5pm to 5am</small></div>
+            <div data-b="0"><b data-t="when.0">Morning</b><small data-t="when.0s">5am to 10am</small></div>
+            <div data-b="1"><b data-t="when.1">Afternoon</b><small data-t="when.1s">10am to 5pm</small></div>
+            <div data-b="2"><b data-t="when.2">Evening</b><small data-t="when.2s">5pm to 5am</small></div>
           </div>
           <p class="note" id="when-note"></p>
         </div>
 
         <div class="sec">
-          <h2>Getting there</h2>
+          <h2 data-t="mode.h">Getting there</h2>
           <div class="seg" id="mode">
-            <div class="on" data-m="foot"><b>On foot</b><small>the whole way</small></div>
-            <div data-m="bus"><b>Bus or rail</b><small>walk to a stop</small></div>
+            <div class="on" data-m="foot"><b data-t="mode.foot">On foot</b><small data-t="mode.foots">the whole way</small></div>
+            <div data-m="bus"><b data-t="mode.bus">Bus or rail</b><small data-t="mode.buss">walk to a stop</small></div>
           </div>
-          <p class="note" id="mode-note">Riding covers distance without putting
+          <p class="note" id="mode-note" data-t="mode.note">Riding covers distance without putting
              you on the street, so a bus trip usually carries less exposure even
              when it takes longer.</p>
         </div>
 
         <div class="sec" id="go-wrap">
-          <button class="act" id="go" disabled>Compare routes</button>
+          <button class="act" id="go" disabled data-t="go">Compare routes</button>
         </div>
 
         <!-- results -->
         <div class="sec" id="r-cards" style="display:none">
-          <h2>Three options</h2>
+          <h2 data-t="cards.h">Three options</h2>
           <div class="cards" id="cards"></div>
-          <p class="note">Exposure is the average risk of the blocks you walk,
+          <p class="note" data-t="cards.note">Exposure is the average risk of the blocks you walk,
              scored from 0 to 100 against every block in Los Angeles at that
              hour. Lower is calmer.</p>
         </div>
 
         <div class="sec" id="r-because" style="display:none">
-          <h2>Why this route</h2>
+          <h2 data-t="why.h">Why this route</h2>
           <div class="because" id="because"></div>
         </div>
 
         <div class="sec" id="r-hours" style="display:none">
-          <h2>Same route, <b>different hour</b></h2>
+          <h2 data-t="hours.h">Same route, <b>different hour</b></h2>
           <div class="hours" id="hours"></div>
           <p class="note" id="hours-note"></p>
         </div>
 
         <div class="sec" id="r-turns" style="display:none">
           <details class="turns">
-            <summary>Street by street</summary>
+            <summary data-t="turns.h">Street by street</summary>
             <ol class="turnlist" id="turnlist"></ol>
           </details>
         </div>
 
         <div class="sec" id="r-share" style="display:none">
-          <button class="ghost" id="share">Copy a link to this route</button>
+          <h2 data-t="keep.h">Keep this route</h2>
+          <div class="actions">
+            <button class="ghost" id="share" data-t="keep.copy">Copy a link</button>
+            <button class="ghost" id="print" data-t="keep.print">Print a walking card</button>
+            <a class="ghost" id="report" href="#" target="_blank" rel="noopener" data-t="keep.report">Report a problem with this route</a>
+          </div>
+          <p class="note" data-t="keep.note">A link opens this exact trip on any phone. The card
+             is for a student without one: the streets, in order, on a single
+             sheet.</p>
         </div>
 
         <div class="sec">
-          <h2>Map layers</h2>
+          <h2 data-t="layers.h">Map layers</h2>
           <div class="seg">
-            <div class="on" id="t-risk">Risk</div>
-            <div id="t-schools">Schools</div>
+            <div class="on" id="t-risk" data-t="layers.risk">Risk</div>
+            <div id="t-schools" data-t="layers.schools">Schools</div>
           </div>
         </div>
       </div>
@@ -1872,8 +1957,8 @@ The entire interface: markup and design system
       <!-- ====================================================== SCHOOL -->
       <div class="pane" id="p-school">
         <div class="sec">
-          <h2>School report</h2>
-          <p class="prose">A single route only tells one student what to do.
+          <h2 data-t="rc.h">School report</h2>
+          <p class="prose" data-t="rc.p">A single route only tells one student what to do.
              This scores every direction a student might approach a school
              from, which is the version a principal or a council member can
              act on.</p>
@@ -1881,42 +1966,53 @@ The entire interface: markup and design system
 
         <div class="sec">
           <label class="fld" style="margin-bottom:9px">
-            <span>School</span>
-            <input type="text" id="rc-school" placeholder="Start typing a school name" autocomplete="off">
+            <span data-t="rc.school">School</span>
+            <input type="text" id="rc-school" placeholder="Start typing a school name" data-tp="ph.school" autocomplete="off">
             <div class="ac" id="ac-rc"></div>
           </label>
-          <button class="act" id="rc-run" disabled>Score every approach</button>
-          <p class="note">Sends a walker inward from 16 compass points about
+          <button class="act" id="rc-run" disabled data-t="rc.run">Score every approach</button>
+          <p class="note" data-t="rc.note">Sends a walker inward from 16 compass points about
              1.2 km out, then ranks the approaches by what they walk through.</p>
         </div>
 
         <div class="sec" id="rc-out" style="display:none">
           <h2 id="rc-title">Approaches</h2>
           <table class="approach">
-            <thead><tr><th>From</th><th>Walk</th><th>Exposure</th></tr></thead>
+            <thead><tr><th data-t="rc.th.from">From</th><th data-t="rc.th.walk">Walk</th><th data-t="rc.th.exp">Exposure</th></tr></thead>
             <tbody id="rc-body"></tbody>
           </table>
           <p class="note" id="rc-note"></p>
+        </div>
+
+        <div class="sec" id="r-embed" style="display:none">
+          <h2 data-t="emb.h">Put this on your school's website</h2>
+          <p class="prose" data-t="emb.p">Paste this where a page accepts HTML. It opens the
+             planner with your school already chosen, so a student only has to
+             type where they start.</p>
+          <textarea class="snippet" id="embed-code" readonly spellcheck="false"></textarea>
+          <button class="ghost" id="embed-copy" style="margin-top:7px" data-t="emb.copy">Copy the code</button>
+          <p class="note" data-t="emb.note">It also works as a plain link, for a newsletter or a
+             text to families.</p>
         </div>
       </div>
 
       <!-- ====================================================== METHOD -->
       <div class="pane" id="p-method">
         <div class="sec">
-          <h2>The problem</h2>
+          <h2 data-t="m.problem.h">The problem</h2>
           <div class="figure">
             <div class="n">1,026</div>
-            <div class="c">Children aged 10 to 18 robbed on the streets of Los
+            <div class="c" data-t="m.problem.fig">Children aged 10 to 18 robbed on the streets of Los
               Angeles during school commute hours between 2020 and 2024. That
               is 56% of all 1,838 robberies of children in that age range,
               inside about five hours of the day.</div>
           </div>
-          <p class="prose">
+          <p class="prose" data-t="m.problem.1">
             Those robberies repeat in specific places, and every one of those
             places is already in the public record. What no map app does is
             route around them.
           </p>
-          <p class="prose">
+          <p class="prose" data-t="m.problem.2">
             The federal Safe Routes to School program dates to 1971 and deals
             almost entirely with cars: crosswalks, speed bumps, crossing
             guards. Ask a student in Los Angeles what worries them on the walk
@@ -1925,21 +2021,21 @@ The entire interface: markup and design system
         </div>
 
         <div class="sec">
-          <h2>What we measured</h2>
-          <p class="prose">
+          <h2 data-t="m.meas.h">What we measured</h2>
+          <p class="prose" data-t="m.meas.1">
             Splitting incidents by time of day only means something once you
             divide by how long each window lasts. Evening covers 12 hours and
             would look worst just for being longest. Per hour:
           </p>
           <table class="data">
-            <thead><tr><th>Window</th><th>Incidents</th><th>Per hour</th></tr></thead>
+            <thead><tr><th data-t="m.meas.th.w">Window</th><th data-t="m.meas.th.i">Incidents</th><th data-t="m.meas.th.h">Per hour</th></tr></thead>
             <tbody>
-              <tr><td>Morning, 5am to 10am</td><td>10,261</td><td>2,052</td></tr>
-              <tr class="mark"><td>Afternoon, 10am to 5pm</td><td>29,721</td><td>4,246</td></tr>
-              <tr><td>Evening, 5pm to 5am</td><td>45,652</td><td>3,804</td></tr>
+              <tr><td data-t="m.meas.r0">Morning, 5am to 10am</td><td>10,261</td><td>2,052</td></tr>
+              <tr class="mark"><td data-t="m.meas.r1">Afternoon, 10am to 5pm</td><td>29,721</td><td>4,246</td></tr>
+              <tr><td data-t="m.meas.r2">Evening, 5pm to 5am</td><td>45,652</td><td>3,804</td></tr>
             </tbody>
           </table>
-          <p class="prose" style="margin-top:11px">
+          <p class="prose" style="margin-top:11px" data-t="m.meas.2">
             The afternoon walk home is the worst hour of a student's day, worse
             hour for hour than after dark. That is the same 2pm to 6pm window
             the robbery figure points at. We were not looking for it.
@@ -1947,30 +2043,33 @@ The entire interface: markup and design system
         </div>
 
         <div class="sec">
-          <h2>Where the data comes from</h2>
+          <h2 data-t="m.data.h">Where the data comes from</h2>
           <ul class="plain">
-            <li><strong>85,634 violent incidents</strong> from the
+            <li data-t="m.data.1"><strong>85,634 violent incidents</strong> from the
               <a href="https://data.lacity.org/Public-Safety/Crime-Data-from-2020-to-Present/2nrs-mtv8" target="_blank" rel="noopener">LAPD crime dataset</a>,
               2020 through 2024.</li>
-            <li><strong>128,534 streetlights</strong> from the
+            <li data-t="m.data.2"><strong>128,534 streetlights</strong> from the
               <a href="https://maps.lacity.org/lahub/rest/services/Bureau_of_Street_Lighting/MapServer" target="_blank" rel="noopener">LA Bureau of Street Lighting</a>.</li>
-            <li><strong>668 schools</strong> from the
+            <li data-t="m.data.3"><strong>668 schools</strong> from the
               <a href="https://www.cde.ca.gov/ds/si/ds/pubschls.asp" target="_blank" rel="noopener">California Department of Education</a> directory.</li>
-            <li><strong>18,473 km of walkable street</strong> from
+            <li data-t="m.data.4"><strong>18,473 km of walkable street</strong> from
               <a href="https://www.openstreetmap.org" target="_blank" rel="noopener">OpenStreetMap</a>,
               cut into 431,599 blocks.</li>
+            <li data-t="m.data.5"><strong>5,395 bus and rail stops</strong> from
+              <a href="https://developer.metro.net/gtfs-schedule-data/" target="_blank" rel="noopener">LA Metro's GTFS feeds</a>,
+              with ride times and headways.</li>
           </ul>
         </div>
 
         <div class="sec">
-          <h2>What we threw away</h2>
-          <p class="prose">
+          <h2 data-t="m.threw.h">What we threw away</h2>
+          <p class="prose" data-t="m.threw.1">
             The raw LAPD file holds roughly a million records. We keep only
             offences that threaten someone walking down a street: robbery,
             assault, criminal threats, brandishing a weapon. A stolen catalytic
             converter says nothing about whether a child is safe on that block.
           </p>
-          <p class="prose">
+          <p class="prose" data-t="m.threw.2">
             A second filter keeps only incidents that happened in public space,
             meaning street, sidewalk, alley, bus stop, park, underpass. That
             one drops about <strong>81,000 records</strong> that happened
@@ -1981,8 +2080,8 @@ The entire interface: markup and design system
         </div>
 
         <div class="sec">
-          <h2>How a block gets scored</h2>
-          <p class="prose">
+          <h2 data-t="m.score.h">How a block gets scored</h2>
+          <p class="prose" data-t="m.score.1">
             Every surviving incident is weighted by how severe it was, how
             recently it happened (exponential decay on a 2.5 year half life),
             and whether the victim was a child. <strong>Crimes against
@@ -1990,7 +2089,7 @@ The entire interface: markup and design system
             13 year old tells you more about the risk to a 13 year old than a
             crime against an adult does.
           </p>
-          <p class="prose">
+          <p class="prose" data-t="m.score.2">
             Incidents then spread out as Gaussian kernels with a 120 m
             bandwidth. We picked 120 m to match how coarsely LAPD records
             locations, not to suggest we know more precisely than that. Each
@@ -1998,7 +2097,7 @@ The entire interface: markup and design system
             other block, so 90 means the block is worse than 90% of Los
             Angeles at that hour.
           </p>
-          <p class="prose">
+          <p class="prose" data-t="m.score.3">
             Streetlights earn a block up to 35% off its score, capped so a
             well lit block in a bad area never comes out looking calm. Wide
             arterials take a penalty, footpaths get a small credit.
@@ -2006,47 +2105,54 @@ The entire interface: markup and design system
         </div>
 
         <div class="sec">
-          <h2>How the route is chosen</h2>
-          <p class="prose">
+          <h2 data-t="m.route.h">How the route is chosen</h2>
+          <p class="prose" data-t="m.route.1">
             Routing is A*, minimising <code>length &times; (1 + &lambda; &middot;
             risk<sup>1.5</sup>)</code>. The three options you get are the same
             search at three values of &lambda;. The 1.5 exponent tolerates
             slightly elevated blocks while avoiding genuinely bad ones firmly.
             A linear penalty gives mushy routes that dodge everything a little.
           </p>
-          <p class="prose">
+          <p class="prose" data-t="m.route.2">
             Every edge multiplier is at least 1, so straight line distance
             never overestimates what is left to walk. The heuristic is
             admissible and the route is provably the cheapest one, not an
             approximation. <code>validate.py</code> checks this against
             Dijkstra on random pairs and the costs come out identical.
           </p>
-          <p class="prose">
+          <p class="prose" data-t="m.route.3">
+            Riding a bus is scored differently: minutes on board are minutes
+            off the street, so they carry no exposure at all. Waiting does.
+            A minute at a stop is charged like 80 m of walking on that block,
+            because standing still on a bad corner is not a safe place to be.
+          </p>
+          <p class="prose" data-t="m.route.4">
             All of it runs in this browser. The scored graph is built offline
             and shipped as a 5 MB binary, so there is no server behind this
-            page and no cost to running it.
+            page and no cost to running it. Once the page has loaded, it keeps
+            working without a connection.
           </p>
         </div>
 
         <div class="sec">
-          <h2>Development goals</h2>
+          <h2 data-t="m.sdg.h">Development goals</h2>
           <div class="sdg">
-            <div><span class="g">11</span><div>
+            <div><span class="g">11</span><div data-t="m.sdg.11">
               <b>Sustainable cities and communities</b>
               <span>Target 11.2 asks for safe transport with attention to
               children. Target 11.7 asks for safe public space.</span>
             </div></div>
-            <div><span class="g">4</span><div>
+            <div><span class="g">4</span><div data-t="m.sdg.4">
               <b>Quality education</b>
               <span>Target 4.a asks for safe learning environments. A commute a
               child is scared to make keeps them out of school.</span>
             </div></div>
-            <div><span class="g">16</span><div>
+            <div><span class="g">16</span><div data-t="m.sdg.16">
               <b>Peace, justice and strong institutions</b>
               <span>Target 16.2 asks for an end to violence against children,
               here using records those institutions already publish.</span>
             </div></div>
-            <div><span class="g">10</span><div>
+            <div><span class="g">10</span><div data-t="m.sdg.10">
               <b>Reduced inequalities</b>
               <span>The students carrying this risk are the ones without a car
               or a ride. They are who this routes for.</span>
@@ -2055,8 +2161,8 @@ The entire interface: markup and design system
         </div>
 
         <div class="sec">
-          <h2>Where it runs next</h2>
-          <p class="prose">
+          <h2 data-t="m.next.h">Where it runs next</h2>
+          <p class="prose" data-t="m.next.1">
             One bounding box in <code>config.py</code> is the only Los Angeles
             specific thing here. The pipeline needs geocoded incident records,
             school locations, and OpenStreetMap, which already covers the
@@ -2068,24 +2174,36 @@ The entire interface: markup and design system
         </div>
 
         <div class="sec">
-          <h2>What this cannot tell you</h2>
+          <h2 data-t="m.limits.h">What this cannot tell you</h2>
           <ul class="plain">
-            <li><strong>Reported crime is not all crime.</strong> Reporting
+            <li data-t="m.limits.1"><strong>Reported crime is not all crime.</strong> Reporting
               rates vary between neighbourhoods and with immigration status, so
               a low score partly reflects who calls the police.</li>
-            <li><strong>Locations are approximate.</strong> LAPD rounds
+            <li data-t="m.limits.2"><strong>Locations are approximate.</strong> LAPD rounds
               coordinates to protect victims, which is why the model smooths
               over 120 m.</li>
-            <li><strong>The data stops in December 2024</strong>, when LAPD
+            <li data-t="m.limits.3"><strong>The data stops in December 2024</strong>, when LAPD
               moved to a new records system. It is complete and stable, and it
               is not live.</li>
-            <li><strong>Scores are relative to Los Angeles.</strong> A 20 means
+            <li data-t="m.limits.4"><strong>Scores are relative to Los Angeles.</strong> A 20 means
               quiet by the standards of this city.</li>
-            <li><strong>This is a second opinion about a walk.</strong> An
+            <li data-t="m.limits.5"><strong>This is a second opinion about a walk.</strong> An
               empty street the model likes can still be worse than a busy one
               it marks down, and you know things about your own neighbourhood
               that a crime table does not record.</li>
           </ul>
+        </div>
+
+        <div class="sec">
+          <h2 data-t="m.about.h">About this project</h2>
+          <p class="prose" data-t="m.about.1">
+            Built by three Los Angeles students. It placed third in the Young
+            Coders' Sphere Code for Transportation challenge in August 2026,
+            and has kept growing since: Spanish, bus and rail, a school report,
+            printable walking cards, and a version that works offline.
+            The code is open at
+            <a href="https://github.com/safe-routes-la/safe-routes-la.github.io" target="_blank" rel="noopener">github.com/safe-routes-la</a>.
+          </p>
         </div>
       </div>
     </div>
@@ -2094,31 +2212,35 @@ The entire interface: markup and design system
   <div id="mapwrap">
     <div id="map"></div>
     <div class="toast" id="toast"></div>
-    <div id="hint">Zoom in to see how individual blocks score</div>
+    <div id="hint" data-t="hint">Zoom in to see how individual blocks score</div>
     <div id="legend">
-      <h4>Block risk / <b id="lg-when">afternoon</b></h4>
+      <h4><span data-t="lg.h">Block risk</span> / <b id="lg-when">afternoon</b></h4>
       <div class="scale" id="lg-scale"></div>
-      <div class="scale-ends"><span>calmer</span><span>worst in LA</span></div>
-      <div class="lg"><i style="background:#3c7a4e"></i> Chosen route</div>
-      <div class="lg"><i style="background:#211f18"></i> Shortest route</div>
-      <div class="cnt"><span id="lg-count">0</span> blocks drawn</div>
+      <div class="scale-ends"><span data-t="lg.calm">calmer</span><span data-t="lg.worst">worst in LA</span></div>
+      <div class="lg"><i style="background:#3c7a4e"></i> <span data-t="lg.chosen">Chosen route</span></div>
+      <div class="lg"><i style="background:#211f18"></i> <span data-t="lg.short">Shortest route</span></div>
+      <div class="cnt"><span id="lg-count">0</span> <span data-t="lg.drawn">blocks drawn</span></div>
     </div>
     <div id="boot">
-      <p id="boot-msg">Loading the street network</p>
+      <p id="boot-msg" data-t="boot.msg">Loading the street network</p>
       <div class="bar"><i id="boot-bar"></i></div>
       <small id="boot-sub">85,634 incidents / 128,534 streetlights</small>
     </div>
   </div>
 </div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<!-- Filled in when a route is printed. Hidden on screen, the only thing on paper. -->
+<div id="printcard"></div>
+
+<!-- Leaflet 1.9.4, vendored so the offline copy does not depend on a CDN. -->
+<script src="vendor/leaflet/leaflet.js"></script>
+<script src="es.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
 
-
 ==============================================================================
-FILE 11 of 11   app.js
+FILE 11 of 13   app.js
 Client-side router, transit planner, map and UI
 ==============================================================================
 
@@ -2144,10 +2266,7 @@ const NOMINATIM = 'https://nominatim.openstreetmap.org/search';
  * ladder, throw away duplicates, and offer only the options that differ. */
 const LADDER = [0, 0.5, 1, 1.75, 2.75, 4.25, 7];
 
-const WINDOWS = ['morning', 'afternoon', 'evening'];
-const WINDOW_CLOCK = ['5am to 10am', '10am to 5pm', '5pm to 5am'];
-const COMPASS = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE',
-                 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+const N_COMPASS = 16;
 
 /* Zoomed out, drawing every above-average block is an unreadable smear, so the
  * threshold rises with distance and detail fills in as you approach one walk. */
@@ -2163,9 +2282,170 @@ const S = {
   nNodes: 0, nEdges: 0,
   bucket: 1, pick: 2, mode: 'foot',
   origin: null, school: null,
-  routes: null,
+  routes: null, report: null,
   showRisk: true, showSchools: false,
+  lang: 'en', embed: false, preset: null,
 };
+
+/* ------------------------------------------------------------ language */
+/* English lives in the HTML and in the table below; other languages ship as
+ * es.js-style files that register on window.LANGS. Static text is swapped by
+ * data-t key, and everything built at run time goes through t(). */
+const EN = {
+  'win.0': 'morning', 'win.1': 'afternoon', 'win.2': 'evening',
+  'clock.0': '5am to 10am', 'clock.1': '10am to 5pm', 'clock.2': '5pm to 5am',
+  'compass': 'N,NNE,NE,ENE,E,ESE,SE,SSE,S,SSW,SW,WSW,W,WNW,NW,NNW',
+
+  'toast.nostreet': 'No walkable street near that point.',
+  'toast.same': 'That start point is already at the school.',
+  'toast.noroute': 'No walking route connects those points.',
+  'toast.nobus': 'No single bus or rail ride links those points. Showing the walk.',
+  'toast.rcnostreet': 'That school is not near a walkable street.',
+  'toast.rcnone': 'Could not reach that school from any direction.',
+  'toast.copyfail': 'Copy failed. The address bar holds the link.',
+  'toast.print': 'Pick a route first.',
+  'ac.none': 'Nothing found for that',
+
+  'mode.none': 'Nothing within a 900 m walk of both ends shares one route, so these are '
+    + 'walking options. Transfers are out of scope: each change adds another wait to stand through.',
+  'mode.found': 'Riding covers distance without putting you on the street. Waiting does '
+    + 'not, so a minute at a stop is charged like {w} m of walking there.',
+
+  'opt.short': 'Shortest', 'opt.shortH': 'what a map app gives you',
+  'opt.mid': 'Balanced', 'opt.midH': 'most calm per extra step',
+  'opt.safe': 'Safest', 'opt.safeH': 'lowest exposure available',
+  'opt.walk': 'Walk the whole way', 'opt.walkH': 'no bus, for comparison',
+  'opt.route': 'Route {r}',
+  'opt.then': ' then ',
+  'opt.rideH': '{n} min riding, {d} on foot',
+  'opt.change': ', one change',
+
+  'card.less': '{cut}% less exposure',
+  'card.min': '{n} min',
+  'card.sub': '{d} walk / {e}',
+
+  'why.same': 'The shortest way here is also the calmest one the model can find, so '
+    + 'there is nothing to trade off.',
+  'why.skips': 'Skips <b>{len}</b> of <span class="st">{st}</span>, which scores <b>{n}</b> at this hour.',
+  'why.along': 'Goes along <span class="st">{st}</span> instead, at <b>{n}</b>.',
+  'why.samelen': 'It comes out the same length.',
+  'why.costm': 'Costs you <b>{m} m</b>, under a minute of walking.',
+  'why.cost1': 'Costs you <b>1 minute</b>.',
+  'why.costn': 'Costs you <b>{n} minutes</b>.',
+  'why.drops': 'Total exposure drops <b>{cut}%</b>.',
+  'unnamed': 'an unnamed path',
+  'unnamed.turn': 'unnamed path',
+
+  'why.t.ride': 'ride <b>{r}</b> for <b>{n} min</b>',
+  'why.t.ridex': 'ride <b>{r}</b> for <b>{n} min</b> with one change at <span class="st">{stop}</span>',
+  'why.t.main': 'Walk <b>{d1}</b> to <span class="st">{stop}</span>, wait about <b>{w} min</b> '
+    + 'in total, then {ride}, then walk <b>{d2}</b> at the other end.',
+  'why.t.only': 'Only <b>{d}</b> of this trip happens on the street.',
+  'why.t.drops': 'Against walking the whole way, exposure drops <b>{cut}%</b>.',
+  'why.t.flat': 'That is about the same exposure as walking it, so take whichever suits you.',
+
+  'hours.note': 'This same trip carries the most exposure in the {win} ({clock}). Changing '
+    + 'the window above re-runs the search, which often returns a different route entirely.',
+
+  'turn.board': 'Board {r} at {stop}',
+  'turn.wait': 'wait {n} min',
+  'turn.ride': 'Ride {n} stops',
+  'turn.off': 'Get off at {stop}',
+  'turn.xfer': 'Walk to {stop} to change',
+  'stop.a': 'a stop',
+  'mk.board': 'Board', 'mk.off': 'Get off', 'mk.change': 'Change here',
+  'pin.start': 'Start',
+  'dest.custom': 'Chosen destination',
+
+  'rc.title': '{n} approaches / <b>{win}</b>',
+  'rc.ratio': 'Approaching {school} from the <b>{worst}</b> means walking through '
+    + '<b>{ratio} times</b> the exposure of the calmest approach, from the <b>{best}</b>.',
+  'rc.same': 'Approaching {school} from the <b>{worst}</b> means walking through about the '
+    + 'same exposure as the calmest approach, from the <b>{best}</b>.',
+  'rc.tail': 'That is where a crossing guard, a lighting request or a walking group would do the most good.',
+
+  'when.now': 'It is {clock}, so {win} is selected. Change it to plan a different walk.',
+  'when.restored': 'Restored from a shared link.',
+  'preset': 'This page is set up for <b>{school}</b>. Type where you start. '
+    + '<a href="{href}">Not your school?</a>',
+  'share.done': 'Link copied',
+  'emb.done': 'Code copied',
+
+  'net.saved': '<b>Saved on this device.</b> Works without a connection.',
+  'net.off': '<b>Offline.</b> Routes still work; the map background will not load.',
+
+  'boot.build': 'Building the routing graph',
+  'boot.sub': '{n} incidents / {km} km of street',
+  'boot.fail': 'The data files did not load.',
+
+  'pc.k': 'Walking card / Safe Routes to School',
+  'pc.to': 'to {school}',
+  'pc.from': 'From {from}',
+  'pc.when': 'For the {win} ({clock}), {mode}.',
+  'pc.mode.foot': 'on foot', 'pc.mode.bus': 'by bus or rail',
+  'pc.opt': 'Option', 'pc.time': 'Time', 'pc.walk': 'On foot', 'pc.exp': 'Exposure',
+  'pc.turns': 'Street by street', 'pc.hours': 'Same route, different hour',
+  'pc.open': 'Open this trip on a phone',
+  'pc.foot': 'Scores run 0 to 100 against every block in Los Angeles at that hour; lower is '
+    + 'calmer. This is a second opinion about a walk, not a guarantee. Data: LAPD 2020 to '
+    + '2024, LA Metro, OpenStreetMap.',
+  'pc.printed': 'Printed {date}',
+};
+
+const LANGS = Object.assign({ en: { name: 'English', s: {}, d: EN } }, window.LANGS || {});
+
+function t(key, vars) {
+  const pack = LANGS[S.lang] || LANGS.en;
+  let str = (pack.d && pack.d[key]) != null ? pack.d[key] : EN[key];
+  if (str == null) return key;
+  if (vars) for (const k in vars) str = str.split(`{${k}}`).join(vars[k]);
+  return str;
+}
+const winName = b => t('win.' + b);
+const winClock = b => t('clock.' + b);
+const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+const compassName = k => t('compass').split(',')[k];
+
+function applyLang() {
+  const pack = LANGS[S.lang] || LANGS.en;
+  document.documentElement.lang = S.lang;
+  for (const el of document.querySelectorAll('[data-t]')) {
+    if (el.dataset.en == null) el.dataset.en = el.innerHTML;
+    const k = el.dataset.t;
+    el.innerHTML = (S.lang !== 'en' && pack.s[k]) ? pack.s[k] : el.dataset.en;
+  }
+  for (const el of document.querySelectorAll('[data-tp]')) {
+    if (el.dataset.enp == null) el.dataset.enp = el.placeholder;
+    const k = el.dataset.tp;
+    el.placeholder = (S.lang !== 'en' && pack.s[k]) ? pack.s[k] : el.dataset.enp;
+  }
+  for (const el of document.querySelectorAll('[data-dyn]')) {
+    el.innerHTML = t(el.dataset.dyn, el.dataset.dynVars ? JSON.parse(el.dataset.dynVars) : null);
+  }
+  [...$('lang').children].forEach(c => c.classList.toggle('on', c.dataset.l === S.lang));
+  $('lg-when').textContent = winName(S.bucket);
+  renderPreset();
+  renderEmbed();
+  renderNet();
+  if (S.routes) { renderCards(); select(S.pick, false); }
+  if (S.report) renderReport();
+}
+
+/* Text set at run time that must survive a language switch is tagged with the
+ * key it came from, so applyLang can rebuild it. */
+function setDyn(el, key, vars) {
+  el.dataset.dyn = key;
+  if (vars) el.dataset.dynVars = JSON.stringify(vars); else delete el.dataset.dynVars;
+  el.innerHTML = t(key, vars);
+}
+
+function setLang(l, persist = true) {
+  if (!LANGS[l]) l = 'en';
+  S.lang = l;
+  if (persist) { try { localStorage.setItem('srs-lang', l); } catch (e) { /* private mode */ } }
+  applyLang();
+  writeUrl();
+}
 
 /* ------------------------------------------------------------------- map */
 const map = L.map('map', { zoomControl: false, preferCanvas: true })
@@ -2188,7 +2468,7 @@ const schoolLayer = L.layerGroup();
 /* ------------------------------------------------------------ utilities */
 const $ = id => document.getElementById(id);
 const fmtM = m => m < 950 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(2)} km`;
-const fmtMin = m => `${Math.max(1, Math.round(m / WALK_MPS / 60))} min`;
+const fmtMin = m => t('card.min', { n: Math.max(1, Math.round(m / WALK_MPS / 60)) });
 const risk = (ei, b) => S.er[ei * 3 + b] / 255;
 const streetName = ei => (S.ename[ei] === NO_NAME ? null : S.names[S.ename[ei]]);
 
@@ -2410,7 +2690,7 @@ function routeLatLngs(r) {
 function byStreet(edgeIds, bucket) {
   const acc = new Map();
   for (const ei of edgeIds) {
-    const nm = streetName(ei) || ' unnamed';
+    const nm = streetName(ei) || ' unnamed';
     let a = acc.get(nm);
     if (!a) acc.set(nm, a = { name: nm, len: 0, worst: 0, weighted: 0 });
     const r = risk(ei, bucket);
@@ -2422,14 +2702,12 @@ function byStreet(edgeIds, bucket) {
 }
 
 const streetLabel = s =>
-  s.name === ' unnamed' ? 'an unnamed path' : s.name;
+  s.name === ' unnamed' ? t('unnamed') : s.name;
 
 function explain(sel, base, bucket) {
   if (sel.edges.length === base.edges.length
       && sel.edges.every((e, i) => e === base.edges[i])) {
-    return { same: true, html:
-      'The shortest way here is also the calmest one the model can find, so '
-      + 'there is nothing to trade off.' };
+    return { same: true, html: t('why.same') };
   }
   const selSet = new Set(sel.edges), baseSet = new Set(base.edges);
   const avoided = byStreet(base.edges.filter(e => !selSet.has(e)), bucket);
@@ -2443,21 +2721,19 @@ function explain(sel, base, bucket) {
   const parts = [];
   if (avoided.length) {
     const a = avoided[0];
-    parts.push(`Skips <b>${fmtM(a.len)}</b> of `
-      + `<span class="st">${streetLabel(a)}</span>, which scores `
-      + `<b>${Math.round(a.worst * 100)}</b> at this hour.`);
+    parts.push(t('why.skips', { len: fmtM(a.len), st: streetLabel(a),
+                                n: Math.round(a.worst * 100) }));
   }
   if (taken.length) {
-    const t = taken.find(x => x.name !== ' unnamed') || taken[0];
-    parts.push(`Goes along <span class="st">${streetLabel(t)}</span> instead, `
-      + `at <b>${Math.round(t.worst * 100)}</b>.`);
+    const tk = taken.find(x => x.name !== ' unnamed') || taken[0];
+    parts.push(t('why.along', { st: streetLabel(tk), n: Math.round(tk.worst * 100) }));
   }
   const cost = extra < 15
-    ? 'It comes out the same length.'
+    ? t('why.samelen')
     : (mins < 1
-        ? `Costs you <b>${Math.round(extra)} m</b>, under a minute of walking.`
-        : `Costs you <b>${mins} minute${mins === 1 ? '' : 's'}</b>.`);
-  parts.push(`${cost} Total exposure drops <b>${cut}%</b>.`);
+        ? t('why.costm', { m: Math.round(extra) })
+        : (mins === 1 ? t('why.cost1') : t('why.costn', { n: mins })));
+  parts.push(`${cost} ${t('why.drops', { cut })}`);
 
   return { same: false, flat: cut <= 2, html: parts.join(' ') };
 }
@@ -2485,7 +2761,7 @@ function mergeSameName(segs) {
 
 function turnList(r, bucket) {
   let segs = mergeSameName(r.edges.map(ei => ({
-    label: streetName(ei) || 'unnamed path',
+    label: streetName(ei) || t('unnamed.turn'),
     len: S.ed[ei],
     worst: risk(ei, bucket),
   })));
@@ -2572,8 +2848,8 @@ function pin(latlng, color, label) {
 function redrawPins() {
   pinLayer.clearLayers();
   if (S.origin) {
-    pin([S.origin.lat, S.origin.lon], '#211f18', 'Start')
-      .bindTooltip('Start', { direction: 'top', offset: [0, -8] }).addTo(pinLayer);
+    pin([S.origin.lat, S.origin.lon], '#211f18', t('pin.start'))
+      .bindTooltip(t('pin.start'), { direction: 'top', offset: [0, -8] }).addTo(pinLayer);
   }
   if (S.school) {
     pin([S.school.lat, S.school.lon], '#3c7a4e', S.school.name)
@@ -2790,6 +3066,7 @@ function transitOptions(origin, school, bucket, lambda) {
       rideMin: c.rideMin, waitMin: c.waitMin, stopRisk: stopRiskAt(bStop),
       dist: walkDist, exposure, timeMin,
       routeLabel: c.legs.map(l => T.patterns[l.pi].r).join(' then '),
+      routeNames: c.legs.map(l => T.patterns[l.pi].r),
       isRail: c.legs.every(l => T.patterns[l.pi].k === 'rail'),
     });
   }
@@ -2826,12 +3103,12 @@ function buildOptions(src, dst, bucket) {
   const all = [...seen.values()];
   if (!all.length) return null;
 
-  const foot = (r, label, hint) =>
-    ({ kind: 'foot', r, exposure: r.exposure, label, hint });
+  const foot = (r, labelKey, hintKey) =>
+    ({ kind: 'foot', r, exposure: r.exposure, labelKey, hintKey });
 
   const fast = all.reduce((a, b) => (b.dist < a.dist ? b : a));
   const safe = all.reduce((a, b) => (b.exposure < a.exposure ? b : a));
-  const out = [foot(fast, 'Shortest', 'what a map app gives you')];
+  const out = [foot(fast, 'opt.short', 'opt.shortH')];
   if (sig(safe) === sig(fast)) return out;
 
   // A middle option only earns its place if it buys more calm per extra metre
@@ -2844,31 +3121,35 @@ function buildOptions(src, dst, bucket) {
     const eff = cut / Math.max(m.dist - fast.dist, 1);
     if (eff > bestEff) { bestEff = eff; mid = m; }
   }
-  if (mid) out.push(foot(mid, 'Balanced', 'most calm per extra step'));
-  out.push(foot(safe, 'Safest', 'lowest exposure available'));
+  if (mid) out.push(foot(mid, 'opt.mid', 'opt.midH'));
+  out.push(foot(safe, 'opt.safe', 'opt.safeH'));
   return out;
 }
+
+/* "35 then 217" reads as a sentence, so the joiner is translated at render time. */
+const rideName = o => o.routeNames.join(t('opt.then'));
+const optLabel = o => (o.routeNames ? (o.labelKey ? t(o.labelKey, { r: rideName(o) }) : rideName(o))
+                                    : t(o.labelKey));
+const optHint = o => (o.hintKey ? t(o.hintKey, o.hintVars) + (o.hintXfer ? t('opt.change') : '') : o.hint);
+const isShortest = o => o.kind === 'foot' && o.labelKey === 'opt.short';
 
 function compute(fit = true) {
   if (!S.origin || !S.school) return;
   const src = nearestNode(S.origin.lat, S.origin.lon);
   const dst = nearestNode(S.school.lat, S.school.lon);
-  if (src < 0 || dst < 0) { toast('No walkable street near that point.'); return; }
-  if (src === dst) { toast('That start point is already at the school.'); return; }
+  if (src < 0 || dst < 0) { toast(t('toast.nostreet')); return; }
+  if (src === dst) { toast(t('toast.same')); return; }
 
   spokeLayer.clearLayers();
   const onFoot = buildOptions(src, dst, S.bucket);
-  if (!onFoot) { toast('No walking route connects those points.'); return; }
+  if (!onFoot) { toast(t('toast.noroute')); return; }
 
   let opts = onFoot;
   if (S.mode === 'bus') {
     const rides = transitOptions(S.origin, S.school, S.bucket, 3.0);
     if (!rides.length) {
-      toast('No single bus or rail ride links those points. Showing the walk.');
-      $('mode-note').textContent =
-        'Nothing within a 900 m walk of both ends shares one route, so these are '
-        + 'walking options. Transfers are out of scope: each change adds another '
-        + 'wait to stand through.';
+      toast(t('toast.nobus'));
+      setDyn($('mode-note'), 'mode.none');
     } else {
       // Always keep the calmest walk on screen, so the bus is compared against
       // the real alternative rather than presented on its own.
@@ -2877,15 +3158,13 @@ function compute(fit = true) {
         ...o,
         // Rail lines already read as names ("Metro E Line"), so only bus
         // numbers need the word Route in front of them.
-        label: /line/i.test(o.routeLabel) ? o.routeLabel : `Route ${o.routeLabel}`,
-        hint: `${Math.round(o.rideMin)} min riding, ${fmtM(o.dist)} on foot`
-            + (o.xfer ? ', one change' : ''),
+        labelKey: /line/i.test(o.routeLabel) ? null : 'opt.route',
+        label: o.routeLabel,
+        hintKey: 'opt.rideH', hintVars: { n: Math.round(o.rideMin), d: fmtM(o.dist) },
+        hintXfer: !!o.xfer,
       }));
-      opts.push({ ...walkRef, label: 'Walk the whole way',
-                  hint: 'no bus, for comparison' });
-      $('mode-note').textContent =
-        'Riding covers distance without putting you on the street. Waiting does '
-        + `not, so a minute at a stop is charged like ${WAIT_M_PER_MIN} m of walking there.`;
+      opts.push({ ...walkRef, labelKey: 'opt.walk', hintKey: 'opt.walkH', hintVars: null });
+      setDyn($('mode-note'), 'mode.found', { w: WAIT_M_PER_MIN });
     }
   }
 
@@ -2906,18 +3185,18 @@ function renderCards() {
 
   $('cards').innerHTML = S.routes.map((o, i) => {
     const cut = refExp > 0 ? Math.round((1 - o.exposure / refExp) * 100) : 0;
-    const sub = (o === ref || cut <= 0) ? o.hint : `${cut}% less exposure`;
+    const sub = (o === ref || cut <= 0) ? optHint(o) : t('card.less', { cut });
     const intensity = optWalk(o) > 0 ? o.exposure / optWalk(o) : 0;
     return `<div class="rc${i === S.pick ? ' on' : ''}" data-i="${i}">
       <span class="swatch" style="background:${bandColor(intensity)}"></span>
-      <span class="who"><b>${o.label}</b><small>${sub}</small></span>
-      <span class="num"><b>${Math.max(1, Math.round(optTime(o)))} min</b><small>${fmtM(optWalk(o))} walk / ${expUnits(o).toFixed(1)}</small></span>
+      <span class="who"><b>${optLabel(o)}</b><small>${sub}</small></span>
+      <span class="num"><b>${t('card.min', { n: Math.max(1, Math.round(optTime(o))) })}</b><small>${t('card.sub', { d: fmtM(optWalk(o)), e: expUnits(o).toFixed(1) })}</small></span>
     </div>`;
   }).join('');
   $('r-cards').style.display = '';
 }
 
-const stopName = si => T.names[T.stops[si][2]] || 'a stop';
+const stopName = si => T.names[T.stops[si][2]] || t('stop.a');
 
 function routeExposureAt(r, b) {
   let e = 0;
@@ -2943,7 +3222,7 @@ function drawWalk(r, colour, weight) {
 
 function drawSelection(o) {
   routeLayer.clearLayers();
-  const ref = S.routes.find(x => x.kind === 'foot' && x.label === 'Shortest');
+  const ref = S.routes.find(isShortest);
   if (ref && ref !== o) {
     L.polyline(routeLatLngs(ref.r), {
       color: '#211f18', weight: 2.5, opacity: .45, dashArray: '3,6',
@@ -2978,8 +3257,8 @@ function drawSelection(o) {
       interactive: false,
     }).addTo(routeLayer);
   }
-  const marks = [[o.bStop, 'Board'], [o.aStop, 'Get off']];
-  if (o.xfer) marks.push([o.xfer.to, 'Change here']);
+  const marks = [[o.bStop, t('mk.board')], [o.aStop, t('mk.off')]];
+  if (o.xfer) marks.push([o.xfer.to, t('mk.change')]);
   for (const [si, lbl] of marks) {
     L.circleMarker([T.stops[si][0], T.stops[si][1]], {
       radius: 5.5, color: '#211f18', weight: 2, fillColor: '#c8912b', fillOpacity: 1,
@@ -2990,31 +3269,24 @@ function drawSelection(o) {
 function renderWhy(o) {
   const el = $('because');
   const walkRef = S.routes.find(x => x.kind === 'foot'
-    && (S.mode === 'bus' || x.label === 'Shortest'));
+    && (S.mode === 'bus' || isShortest(x)));
 
   if (o.kind === 'transit') {
     const cut = walkRef && walkRef.exposure > 0
       ? Math.round((1 - o.exposure / walkRef.exposure) * 100) : 0;
     const ride = o.xfer
-      ? `ride <b>${o.routeLabel}</b> for <b>${Math.round(o.rideMin)} min</b> with `
-        + `one change at <span class="st">${stopName(o.xfer.to)}</span>`
-      : `ride <b>${o.routeLabel}</b> for <b>${Math.round(o.rideMin)} min</b>`;
+      ? t('why.t.ridex', { r: rideName(o), n: Math.round(o.rideMin), stop: stopName(o.xfer.to) })
+      : t('why.t.ride', { r: rideName(o), n: Math.round(o.rideMin) });
     const bits = [
-      `Walk <b>${fmtM(o.legA ? o.legA.dist : 0)}</b> to `
-      + `<span class="st">${stopName(o.bStop)}</span>, wait about `
-      + `<b>${Math.round(o.waitMin)} min</b> in total, then ${ride}, `
-      + `then walk <b>${fmtM(o.legB ? o.legB.dist : 0)}</b> at the other end.`,
-      `Only <b>${fmtM(o.dist)}</b> of this trip happens on the street.`,
+      t('why.t.main', { d1: fmtM(o.legA ? o.legA.dist : 0), stop: stopName(o.bStop),
+                        w: Math.round(o.waitMin), ride, d2: fmtM(o.legB ? o.legB.dist : 0) }),
+      t('why.t.only', { d: fmtM(o.dist) }),
     ];
-    if (walkRef) {
-      bits.push(cut > 2
-        ? `Against walking the whole way, exposure drops <b>${cut}%</b>.`
-        : `That is about the same exposure as walking it, so take whichever suits you.`);
-    }
+    if (walkRef) bits.push(cut > 2 ? t('why.t.drops', { cut }) : t('why.t.flat'));
     el.className = 'because' + (cut <= 2 ? ' flat' : '');
     el.innerHTML = bits.join(' ');
   } else {
-    const base = (S.routes.find(x => x.kind === 'foot' && x.label === 'Shortest') || o).r;
+    const base = (S.routes.find(isShortest) || o).r;
     const ex = explain(o.r, base, S.bucket);
     el.className = 'because' + (ex.flat ? ' flat' : '');
     el.innerHTML = ex.html;
@@ -3027,15 +3299,12 @@ function renderHours(o) {
   const max = Math.max(...vals, 0.01);
   $('hours').innerHTML = vals.map((v, b) => `
     <div class="hrow${b === S.bucket ? ' now' : ''}">
-      <span>${WINDOWS[b][0].toUpperCase() + WINDOWS[b].slice(1)}</span>
+      <span>${cap(winName(b))}</span>
       <span class="track"><i class="bar" style="width:${(v / max * 100).toFixed(1)}%;background:${bandColor(optWalk(o) ? exposureAt(o, b) / optWalk(o) : 0)}"></i></span>
       <b>${v.toFixed(1)}</b>
     </div>`).join('');
   const worst = vals.indexOf(Math.max(...vals));
-  $('hours-note').textContent =
-    `This same trip carries the most exposure in the ${WINDOWS[worst]} `
-    + `(${WINDOW_CLOCK[worst]}). Changing the window above re-runs the search, `
-    + `which often returns a different route entirely.`;
+  $('hours-note').textContent = t('hours.note', { win: winName(worst), clock: winClock(worst) });
   $('r-hours').style.display = '';
 }
 
@@ -3053,13 +3322,13 @@ function renderTurns(o) {
     o.legs.forEach((leg, k) => {
       const pat = T.patterns[leg.pi];
       const board = pat.s[leg.posA], off = pat.s[leg.posB];
-      html += turnRow(`Board ${pat.r} at ${stopName(board)}`,
-                      `wait ${Math.round(pat.w)} min`, o.stopRisk);
-      html += turnRow(`Ride ${leg.posB - leg.posA} stops`,
-                      `${Math.round(Math.max(0, pat.t[leg.posB] - pat.t[leg.posA]) / 60)} min`, 0);
-      html += turnRow(`Get off at ${stopName(off)}`, '', o.stopRisk);
+      html += turnRow(t('turn.board', { r: pat.r, stop: stopName(board) }),
+                      t('turn.wait', { n: Math.round(pat.w) }), o.stopRisk);
+      html += turnRow(t('turn.ride', { n: leg.posB - leg.posA }),
+                      t('card.min', { n: Math.round(Math.max(0, pat.t[leg.posB] - pat.t[leg.posA]) / 60) }), 0);
+      html += turnRow(t('turn.off', { stop: stopName(off) }), '', o.stopRisk);
       if (k === 0 && o.xfer && o.xfer.metres > 0) {
-        html += turnRow(`Walk to ${stopName(o.xfer.to)} to change`,
+        html += turnRow(t('turn.xfer', { stop: stopName(o.xfer.to) }),
                         fmtM(o.xfer.metres), o.stopRisk);
       }
     });
@@ -3085,6 +3354,7 @@ function select(i, fit = true) {
   renderHours(o);
   renderTurns(o);
   $('r-share').style.display = '';
+  $('report').href = reportUrl();
 
   writeUrl();
   if (fit) {
@@ -3096,14 +3366,14 @@ function select(i, fit = true) {
 /* -------------------------------------------------------- school report */
 function report(school) {
   const dst = nearestNode(school.lat, school.lon);
-  if (dst < 0) { toast('That school is not near a walkable street.'); return; }
+  if (dst < 0) { toast(t('toast.rcnostreet')); return; }
   const R = 1200;
   const rows = [];
   spokeLayer.clearLayers();
   routeLayer.clearLayers();
 
-  for (let k = 0; k < COMPASS.length; k++) {
-    const th = k * 2 * Math.PI / COMPASS.length;
+  for (let k = 0; k < N_COMPASS; k++) {
+    const th = k * 2 * Math.PI / N_COMPASS;
     const lat = school.lat + (R * Math.cos(th)) / 111320;
     const lon = school.lon + (R * Math.sin(th)) / 92500;
     const src = nearestNode(lat, lon);
@@ -3112,12 +3382,11 @@ function report(school) {
     // direction dangerous in the first place.
     const r = route(src, dst, 0, S.bucket);
     if (!r) continue;
-    rows.push({ dir: COMPASS[k], r });
+    rows.push({ k, r });
   }
-  if (!rows.length) { toast('Could not reach that school from any direction.'); return; }
+  if (!rows.length) { toast(t('toast.rcnone')); return; }
 
   rows.sort((a, b) => b.r.score - a.r.score);
-  const worst = rows[0], best = rows[rows.length - 1];
 
   for (const row of rows) {
     L.polyline(routeLatLngs(row.r), {
@@ -3129,21 +3398,26 @@ function report(school) {
   pin([school.lat, school.lon], '#211f18', school.name)
     .bindTooltip(school.name, { direction: 'top', offset: [0, -8] }).addTo(pinLayer);
 
-  $('rc-title').innerHTML = `${rows.length} approaches / <b>${WINDOWS[S.bucket]}</b>`;
+  S.report = { school, rows, bucket: S.bucket };
+  renderReport();
+  map.fitBounds(L.featureGroup(spokeLayer.getLayers()).getBounds().pad(0.08),
+                { animate: false });
+}
+
+function renderReport() {
+  const { school, rows, bucket } = S.report;
+  const worst = rows[0], best = rows[rows.length - 1];
+  $('rc-title').innerHTML = t('rc.title', { n: rows.length, win: winName(bucket) });
   $('rc-body').innerHTML = rows.map(row => {
     const cls = row === worst ? ' class="worst"' : row === best ? ' class="best"' : '';
-    return `<tr${cls}><td class="dir"><span class="swatch" style="background:${bandColor(row.r.score / 100)}"></span>${row.dir}</td>`
+    return `<tr${cls}><td class="dir"><span class="swatch" style="background:${bandColor(row.r.score / 100)}"></span>${compassName(row.k)}</td>`
       + `<td>${fmtM(row.r.dist)}</td><td class="sc">${Math.round(row.r.score)}</td></tr>`;
   }).join('');
   const ratio = best.r.score > 0 ? (worst.r.score / best.r.score) : 0;
-  $('rc-note').innerHTML =
-    `Approaching ${school.name} from the <b>${worst.dir}</b> means walking through `
-    + `${ratio >= 1.15 ? `<b>${ratio.toFixed(1)} times</b> the exposure of` : 'about the same exposure as'} `
-    + `the calmest approach, from the <b>${best.dir}</b>. `
-    + `That is where a crossing guard, a lighting request or a walking group would do the most good.`;
+  const vars = { school: school.name, worst: compassName(worst.k), best: compassName(best.k),
+                 ratio: ratio.toFixed(1) };
+  $('rc-note').innerHTML = `${t(ratio >= 1.15 ? 'rc.ratio' : 'rc.same', vars)} ${t('rc.tail')}`;
   $('rc-out').style.display = '';
-  map.fitBounds(L.featureGroup(spokeLayer.getLayers()).getBounds().pad(0.08),
-                { animate: false });
 }
 
 /* --------------------------------------------------------- autocomplete */
@@ -3169,7 +3443,7 @@ function attachAC(inputId, listId, search, onPick) {
         items = (await search(q)) || [];
       } catch (e) { items = []; }
       if (!items.length) {
-        list.innerHTML = '<div class="none">Nothing found for that</div>';
+        list.innerHTML = `<div class="none">${t('ac.none')}</div>`;
         list.classList.add('on');
         return;
       }
@@ -3233,11 +3507,41 @@ function writeUrl() {
   p.set('when', String(S.bucket));
   p.set('mode', S.mode);
   p.set('pick', String(S.pick));
+  if (S.lang !== 'en') p.set('lang', S.lang);
+  if (S.embed) p.set('embed', '1');
   history.replaceState(null, '', `${location.pathname}?${p}`);
+}
+
+/* The link a school pastes into its own site, or texts to families. It carries
+ * the school and the language, and nothing about any one student's home. */
+function presetUrl(school) {
+  const p = new URLSearchParams();
+  p.set('school', school.id);
+  if (S.lang !== 'en') p.set('lang', S.lang);
+  return `${location.origin}${location.pathname}?${p}`;
+}
+
+function reportUrl() {
+  const link = location.href;
+  const title = `Route problem: ${S.school ? S.school.name : 'unknown school'}`;
+  const body = `**What looks wrong?**\n\n(describe the block or street)\n\n**The trip:** ${link}\n`;
+  return 'https://github.com/safe-routes-la/safe-routes-la.github.io/issues/new'
+    + `?title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`;
 }
 
 function readUrl() {
   const p = new URLSearchParams(location.search);
+
+  // A school on its own: the page a school hands out, with nothing else set.
+  const presetId = p.get('school');
+  if (presetId) {
+    const sc = S.schools.find(s => s.id === presetId);
+    if (sc) {
+      S.preset = sc; S.school = sc;
+      $('school').value = sc.name;
+      $('rc-school').value = sc.name; S.rcSchool = sc; $('rc-run').disabled = false;
+    }
+  }
   const from = p.get('from'), to = p.get('to');
   if (!from || !to) return false;
   const [flat, flon] = from.split(',').map(Number);
@@ -3248,7 +3552,7 @@ function readUrl() {
   let sc = S.schools.find(s => s.id === to);
   if (!sc && to.includes(',')) {
     const [tlat, tlon] = to.split(',').map(Number);
-    if (isFinite(tlat) && isFinite(tlon)) sc = { name: 'Chosen destination', lat: tlat, lon: tlon };
+    if (isFinite(tlat) && isFinite(tlon)) sc = { name: t('dest.custom'), lat: tlat, lon: tlon };
   }
   if (!sc) return false;
   S.school = sc;
@@ -3270,7 +3574,7 @@ function readUrl() {
 function setWindow(b, recompute = true) {
   S.bucket = b;
   [...$('when').children].forEach(c => c.classList.toggle('on', +c.dataset.b === b));
-  $('lg-when').textContent = WINDOWS[b];
+  $('lg-when').textContent = winName(b);
   drawRisk();
   if (recompute && S.origin && S.school) compute(false);
 }
@@ -3316,12 +3620,144 @@ $('share').addEventListener('click', async () => {
   writeUrl();
   try {
     await navigator.clipboard.writeText(location.href);
-    $('share').textContent = 'Link copied';
-    setTimeout(() => { $('share').textContent = 'Copy a link to this route'; }, 2200);
+    $('share').textContent = t('share.done');
+    setTimeout(() => applyLang(), 2200);
   } catch (e) {
-    toast('Copy failed. The address bar holds the link.');
+    toast(t('toast.copyfail'));
   }
 });
+
+$('print').addEventListener('click', () => {
+  if (!S.routes) { toast(t('toast.print')); return; }
+  buildPrintCard();
+  window.print();
+});
+
+/* ---------------------------------------------------------- print card */
+/* A sheet a student can carry: the streets in order, the tradeoff in one line,
+ * and the link that reopens the same trip. Text only, so it prints on anything
+ * and photocopies cleanly. */
+function buildPrintCard() {
+  const o = S.routes[S.pick];
+  const b = S.bucket;
+  const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  const vals = [0, 1, 2].map(k => exposureAt(o, k) / 100);
+  const max = Math.max(...vals, 0.01);
+  const row = (label, m, worst) =>
+    `<li><span>${esc(label)}</span><span class="m">${esc(m)}</span>`
+    + `<span class="c">${worst == null ? '' : Math.round(worst * 100)}</span></li>`;
+
+  let turns = '';
+  if (o.kind === 'transit') {
+    if (o.legA) turns += turnList(o.legA, b).map(x => row(x.label, fmtM(x.len), x.worst)).join('');
+    o.legs.forEach((leg, k) => {
+      const pat = T.patterns[leg.pi];
+      turns += row(t('turn.board', { r: pat.r, stop: stopName(pat.s[leg.posA]) }),
+                   t('turn.wait', { n: Math.round(pat.w) }), o.stopRisk);
+      turns += row(t('turn.ride', { n: leg.posB - leg.posA }),
+                   t('card.min', { n: Math.round(Math.max(0, pat.t[leg.posB] - pat.t[leg.posA]) / 60) }), null);
+      turns += row(t('turn.off', { stop: stopName(pat.s[leg.posB]) }), '', o.stopRisk);
+      if (k === 0 && o.xfer && o.xfer.metres > 0) {
+        turns += row(t('turn.xfer', { stop: stopName(o.xfer.to) }), fmtM(o.xfer.metres), o.stopRisk);
+      }
+    });
+    if (o.legB) turns += turnList(o.legB, b).map(x => row(x.label, fmtM(x.len), x.worst)).join('');
+  } else {
+    turns = turnList(o.r, b).map(x => row(x.label, fmtM(x.len), x.worst)).join('');
+  }
+
+  const mode = t(o.kind === 'transit' ? 'pc.mode.bus' : 'pc.mode.foot');
+  const date = new Date().toLocaleDateString(S.lang === 'es' ? 'es-US' : 'en-US',
+    { year: 'numeric', month: 'long', day: 'numeric' });
+
+  $('printcard').innerHTML = `
+    <div class="k">${t('pc.k')}</div>
+    <h1>${esc(S.school.name)}<small>${t('pc.from', { from: esc($('origin').value) })}</small></h1>
+    <div class="meta">${t('pc.when', { win: winName(b), clock: winClock(b), mode })}</div>
+    <table class="sum">
+      <tr><td>${t('pc.opt')}</td><td>${esc(optLabel(o))}</td></tr>
+      <tr><td>${t('pc.time')}</td><td>${t('card.min', { n: Math.max(1, Math.round(optTime(o))) })}</td></tr>
+      <tr><td>${t('pc.walk')}</td><td>${fmtM(optWalk(o))}</td></tr>
+      <tr><td>${t('pc.exp')}</td><td>${expUnits(o).toFixed(1)}</td></tr>
+    </table>
+    <div class="why">${$('because').innerHTML}</div>
+    <h2>${t('pc.turns')}</h2>
+    <ol>${turns}</ol>
+    <h2>${t('pc.hours')}</h2>
+    <div class="hours">${vals.map((v, k) =>
+      `<div><span>${cap(winName(k))}</span><span class="t"><i style="width:${(v / max * 100).toFixed(0)}%"></i></span><b>${v.toFixed(1)}</b></div>`).join('')}</div>
+    <div class="foot">
+      <div>${t('pc.open')}: <span class="url">${esc(location.href)}</span></div>
+      <div style="margin-top:4pt">${t('pc.foot')}</div>
+      <div style="margin-top:4pt">${t('pc.printed', { date })}</div>
+    </div>`;
+}
+
+/* -------------------------------------------------------- preset / embed */
+function renderPreset() {
+  const el = $('preset');
+  if (!S.preset) { el.style.display = 'none'; return; }
+  el.innerHTML = t('preset', { school: S.preset.name,
+    href: location.pathname + (S.lang !== 'en' ? `?lang=${S.lang}` : '') });
+  el.style.display = '';
+}
+
+function renderEmbed() {
+  const sc = S.rcSchool || S.preset;
+  const el = $('r-embed');
+  if (!sc) { el.style.display = 'none'; return; }
+  const url = presetUrl(sc);
+  $('embed-code').value =
+    `<iframe src="${url}&embed=1" width="100%" height="640" style="border:0" `
+    + `title="Safe Routes to School: ${sc.name.replace(/"/g, '')}" loading="lazy"></iframe>\n`
+    + `<!-- ${url} -->`;
+  el.style.display = '';
+}
+
+$('embed-copy').addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText($('embed-code').value);
+    $('embed-copy').textContent = t('emb.done');
+    setTimeout(() => applyLang(), 2200);
+  } catch (e) {
+    $('embed-code').select();
+    toast(t('toast.copyfail'));
+  }
+});
+
+$('lang').addEventListener('click', e => {
+  const d = e.target.closest('span[data-l]'); if (!d) return;
+  setLang(d.dataset.l);
+});
+
+/* ------------------------------------------------------------- offline */
+/* The service worker keeps the page and its 5 MB graph on the device, so a
+ * student with no data plan can still plan a walk after the first visit. The
+ * basemap is not cached (it is CARTO's to serve), which is why the offline
+ * note says the background will be missing. */
+function renderNet() {
+  const el = $('net');
+  if (!navigator.onLine) { el.innerHTML = t('net.off'); el.classList.add('show'); return; }
+  if (S.saved) { el.innerHTML = t('net.saved'); el.classList.add('show'); return; }
+  el.classList.remove('show');
+}
+window.addEventListener('online', renderNet);
+window.addEventListener('offline', renderNet);
+
+function registerOffline() {
+  if (!('serviceWorker' in navigator)) return;
+  if (location.protocol !== 'https:' && location.hostname !== 'localhost'
+      && location.hostname !== '127.0.0.1') return;
+  navigator.serviceWorker.register('sw.js').then(reg => {
+    if (!reg) return;
+    const ready = () => { S.saved = true; renderNet(); };
+    if (reg.active) ready();
+    else {
+      const w = reg.installing || reg.waiting;
+      if (w) w.addEventListener('statechange', () => { if (w.state === 'activated') ready(); });
+    }
+  }).catch(e => console.warn('offline copy not available', e));
+}
 
 $('demo').addEventListener('click', () => {
   const sc = S.schools.find(s => /Enriched Studies/i.test(s.name)) || S.schools[0];
@@ -3415,7 +3851,7 @@ async function boot() {
     if (bus) { bus.style.display = 'none'; }
   }
   $('boot-sub').textContent =
-    `${meta.crimes.toLocaleString()} incidents / ${meta.km.toLocaleString()} km of street`;
+    t('boot.sub', { n: meta.crimes.toLocaleString(), km: meta.km.toLocaleString() });
 
   $('lg-scale').innerHTML =
     BANDS.map(b => `<i style="background:${b.hex}"></i>`).join('');
@@ -3426,7 +3862,7 @@ async function boot() {
       `${(got / 1e6).toFixed(1)} of ${(total / 1e6).toFixed(1)} MB`;
   });
 
-  $('boot-msg').textContent = 'Building the routing graph';
+  $('boot-msg').textContent = t('boot.build');
   $('boot-bar').style.width = '100%';
   decode(buf);
   buildAdjacency();
@@ -3452,29 +3888,350 @@ async function boot() {
     S.rcSchool = it.school;
     $('rc-school').value = it.school.name;
     $('rc-run').disabled = false;
+    renderEmbed();
   });
 
   const now = windowForNow();
   const restored = readUrl();
   if (!restored) {
     setWindow(now, false);
-    const clock = new Date().toLocaleTimeString('en-US',
+    const clock = new Date().toLocaleTimeString(S.lang === 'es' ? 'es-US' : 'en-US',
       { hour: 'numeric', minute: '2-digit' });
-    $('when-note').textContent =
-      `It is ${clock}, so ${WINDOWS[now]} is selected. Change it to plan a different walk.`;
+    setDyn($('when-note'), 'when.now', { clock, win: winName(now) });
   } else {
-    $('when-note').textContent = 'Restored from a shared link.';
+    setDyn($('when-note'), 'when.restored');
   }
+  if (S.preset && !restored) {
+    map.setView([S.preset.lat, S.preset.lon], 15);
+    redrawPins();
+  }
+  applyLang();
 
   $('boot').classList.add('done');
   drawRisk();
   if (restored) { redrawPins(); compute(); }
+  registerOffline();
 }
+
+/* Language and embed mode are decided before anything loads, so the loading
+ * screen itself is already in the right language. */
+(function early() {
+  const p = new URLSearchParams(location.search);
+  let l = p.get('lang');
+  if (!l) { try { l = localStorage.getItem('srs-lang'); } catch (e) { /* ignore */ } }
+  if (!l && /^es\b/i.test(navigator.language || '')) l = 'es';
+  if (l && LANGS[l]) S.lang = l;
+  if (p.get('embed') === '1') { S.embed = true; document.body.classList.add('embed'); }
+  applyLang();
+})();
 
 boot().catch(err => {
   $('boot').classList.remove('done');
-  $('boot-msg').textContent = 'The data files did not load.';
+  $('boot-msg').textContent = t('boot.fail');
   $('boot-sub').textContent = err.message;
   console.error(err);
 });
 
+==============================================================================
+FILE 12 of 13   es.js
+Spanish: every string the interface shows
+==============================================================================
+
+/* Spanish for Safe Routes to School.
+ *
+ * `s` holds replacement HTML for every element in index.html that carries a
+ * data-t key (English stays in the HTML and is captured before the first
+ * switch). `d` holds the strings app.js builds at run time, with {name}
+ * placeholders that t() fills in. Adding a third language means one more file
+ * shaped like this one and one more entry in the toggle. */
+window.LANGS = window.LANGS || {};
+window.LANGS.es = {
+  name: 'Español',
+  s: {
+    'kicker': 'Los Ángeles / 2020&ndash;2024',
+    'h1sub': 'a la escuela',
+    'tagline': 'Indicaciones para caminar hechas a partir de dónde asaltan de verdad a los estudiantes, y no solo de la distancia.',
+    'tab.route': 'Ruta',
+    'tab.school': 'Escuela',
+    'tab.method': 'Método',
+
+    'intro.h': 'Cómo usar esto',
+    'intro.1': 'Elige la <b>escuela</b> a la que caminas.',
+    'intro.2': 'Escribe la <b>dirección o el cruce de calles</b> de donde sales, o haz clic en cualquier punto del mapa.',
+    'intro.3': 'Compara las <b>tres rutas</b> que te ofrece y elige una.',
+    'intro.demo': 'Muéstrame un ejemplo',
+
+    'walk.h': 'La caminata',
+    'walk.school': 'Escuela',
+    'walk.from': 'Saliendo de',
+    'walk.note': 'Las direcciones se buscan en OpenStreetMap. También puedes hacer clic en el mapa para marcar un punto.',
+    'ph.school': 'Escribe el nombre de la escuela',
+    'ph.origin': 'Dirección, o cruce de calles',
+
+    'when.h': 'Hora del día',
+    'when.0': 'Mañana', 'when.0s': '5am a 10am',
+    'when.1': 'Tarde', 'when.1s': '10am a 5pm',
+    'when.2': 'Noche', 'when.2s': '5pm a 5am',
+
+    'mode.h': 'Cómo llegar',
+    'mode.foot': 'A pie', 'mode.foots': 'todo el camino',
+    'mode.bus': 'Autobús o tren', 'mode.buss': 'caminar a una parada',
+    'mode.note': 'Ir en autobús cubre distancia sin ponerte en la calle, así que un viaje en autobús suele tener menos exposición aunque tarde más.',
+
+    'go': 'Comparar rutas',
+
+    'cards.h': 'Tres opciones',
+    'cards.note': 'La exposición es el riesgo promedio de las cuadras que caminas, de 0 a 100, comparado con todas las cuadras de Los Ángeles a esa hora. Menos es más tranquilo.',
+    'why.h': 'Por qué esta ruta',
+    'hours.h': 'Misma ruta, <b>otra hora</b>',
+    'turns.h': 'Calle por calle',
+
+    'keep.h': 'Guarda esta ruta',
+    'keep.copy': 'Copiar un enlace',
+    'keep.print': 'Imprimir una tarjeta',
+    'keep.report': 'Reportar un problema con esta ruta',
+    'keep.note': 'El enlace abre este mismo viaje en cualquier teléfono. La tarjeta es para un estudiante que no tiene uno: las calles, en orden, en una sola hoja.',
+
+    'layers.h': 'Capas del mapa',
+    'layers.risk': 'Riesgo',
+    'layers.schools': 'Escuelas',
+
+    'rc.h': 'Informe por escuela',
+    'rc.p': 'Una sola ruta le dice a un solo estudiante qué hacer. Esto califica cada dirección desde la que un estudiante podría llegar a la escuela, que es la versión con la que un director o un concejal puede actuar.',
+    'rc.school': 'Escuela',
+    'rc.run': 'Calificar cada acceso',
+    'rc.note': 'Envía a un caminante hacia la escuela desde 16 puntos cardinales a unos 1.2 km, y ordena los accesos según lo que atraviesan.',
+    'rc.th.from': 'Desde', 'rc.th.walk': 'Caminata', 'rc.th.exp': 'Exposición',
+
+    'emb.h': 'Ponlo en el sitio web de tu escuela',
+    'emb.p': 'Pega esto donde una página acepte HTML. Abre el planificador con tu escuela ya elegida, así que el estudiante solo tiene que escribir de dónde sale.',
+    'emb.copy': 'Copiar el código',
+    'emb.note': 'También funciona como enlace normal, para un boletín o un mensaje a las familias.',
+
+    'm.problem.h': 'El problema',
+    'm.problem.fig': 'Niños y jóvenes de 10 a 18 años asaltados en las calles de Los Ángeles en horario de ida y vuelta a la escuela entre 2020 y 2024. Es el 56% de los 1,838 robos a menores de esa edad, dentro de unas cinco horas del día.',
+    'm.problem.1': 'Esos robos se repiten en lugares concretos, y cada uno de esos lugares ya está en los registros públicos. Lo que ninguna app de mapas hace es rodearlos.',
+    'm.problem.2': 'El programa federal Safe Routes to School existe desde 1971 y trata casi solo de autos: cruces peatonales, topes, guardias de cruce. Pregúntale a un estudiante de Los Ángeles qué le preocupa al caminar a casa y el tráfico rara vez es la respuesta.',
+
+    'm.meas.h': 'Lo que medimos',
+    'm.meas.1': 'Separar los incidentes por hora del día solo significa algo cuando divides entre lo que dura cada ventana. La noche cubre 12 horas y parecería la peor solo por ser la más larga. Por hora:',
+    'm.meas.th.w': 'Ventana', 'm.meas.th.i': 'Incidentes', 'm.meas.th.h': 'Por hora',
+    'm.meas.r0': 'Mañana, 5am a 10am',
+    'm.meas.r1': 'Tarde, 10am a 5pm',
+    'm.meas.r2': 'Noche, 5pm a 5am',
+    'm.meas.2': 'La caminata de regreso por la tarde es la peor hora del día de un estudiante, peor hora por hora que después de oscurecer. Es la misma ventana de 2pm a 6pm que señala la cifra de robos. No la estábamos buscando.',
+
+    'm.data.h': 'De dónde salen los datos',
+    'm.data.1': '<strong>85,634 incidentes violentos</strong> del <a href="https://data.lacity.org/Public-Safety/Crime-Data-from-2020-to-Present/2nrs-mtv8" target="_blank" rel="noopener">registro de delitos del LAPD</a>, de 2020 a 2024.',
+    'm.data.2': '<strong>128,534 farolas</strong> de la <a href="https://maps.lacity.org/lahub/rest/services/Bureau_of_Street_Lighting/MapServer" target="_blank" rel="noopener">Oficina de Alumbrado Público de LA</a>.',
+    'm.data.3': '<strong>668 escuelas</strong> del directorio del <a href="https://www.cde.ca.gov/ds/si/ds/pubschls.asp" target="_blank" rel="noopener">Departamento de Educación de California</a>.',
+    'm.data.4': '<strong>18,473 km de calles transitables a pie</strong> de <a href="https://www.openstreetmap.org" target="_blank" rel="noopener">OpenStreetMap</a>, divididas en 431,599 cuadras.',
+    'm.data.5': '<strong>5,395 paradas de autobús y tren</strong> de los <a href="https://developer.metro.net/gtfs-schedule-data/" target="_blank" rel="noopener">datos GTFS de LA Metro</a>, con tiempos de viaje y frecuencias.',
+
+    'm.threw.h': 'Lo que descartamos',
+    'm.threw.1': 'El archivo bruto del LAPD tiene cerca de un millón de registros. Nos quedamos solo con los delitos que amenazan a alguien que camina por la calle: robo, agresión, amenazas, mostrar un arma. Un convertidor catalítico robado no dice nada sobre si un niño está seguro en esa cuadra.',
+    'm.threw.2': 'Un segundo filtro conserva solo los incidentes ocurridos en espacio público: calle, banqueta, callejón, parada de autobús, parque, paso a desnivel. Ese filtro descarta unos <strong>81,000 registros</strong> ocurridos bajo techo. La violencia doméstica es grave, y también es cierto que no es un peligro de pasar caminando frente a un edificio, así que contarla habría marcado cuadras residenciales normales como peligrosas para caminar.',
+
+    'm.score.h': 'Cómo se califica una cuadra',
+    'm.score.1': 'Cada incidente que sobrevive se pondera por su gravedad, por qué tan reciente fue (decaimiento exponencial con una vida media de 2.5 años) y por si la víctima era menor de edad. <strong>Los delitos contra menores cuentan triple</strong>, porque un delito contra alguien de 13 años dice más sobre el riesgo para alguien de 13 años que un delito contra un adulto.',
+    'm.score.2': 'Los incidentes se extienden luego como núcleos gaussianos con un ancho de 120 m. Elegimos 120 m para igualar la imprecisión con que el LAPD registra las ubicaciones, no para sugerir que sabemos más que eso. Cada cuadra se muestrea cada 25 m, se califica y se ordena frente a todas las demás, así que 90 significa que la cuadra es peor que el 90% de Los Ángeles a esa hora.',
+    'm.score.3': 'Las farolas le quitan a una cuadra hasta un 35% de su puntuación, con un tope para que una cuadra bien iluminada en una zona mala nunca parezca tranquila. Las avenidas anchas reciben una penalización; los senderos peatonales, un pequeño crédito.',
+
+    'm.route.h': 'Cómo se elige la ruta',
+    'm.route.1': 'El ruteo es A*, minimizando <code>longitud &times; (1 + &lambda; &middot; riesgo<sup>1.5</sup>)</code>. Las tres opciones que recibes son la misma búsqueda con tres valores de &lambda;. El exponente 1.5 tolera cuadras un poco elevadas y evita con firmeza las realmente malas. Una penalización lineal da rutas blandas que esquivan todo un poquito.',
+    'm.route.2': 'Cada multiplicador de tramo es al menos 1, así que la distancia en línea recta nunca sobreestima lo que falta por caminar. La heurística es admisible y la ruta es demostrablemente la más barata, no una aproximación. <code>validate.py</code> lo comprueba contra Dijkstra en pares aleatorios y los costos salen idénticos.',
+    'm.route.3': 'Ir en autobús se califica distinto: los minutos a bordo son minutos fuera de la calle, así que no tienen exposición alguna. Esperar sí la tiene. Un minuto en una parada se cobra como 80 m de caminata en esa cuadra, porque quedarse parado en una esquina mala no es un lugar seguro.',
+    'm.route.4': 'Todo corre en este navegador. El grafo calificado se construye fuera de línea y se envía como un binario de 5 MB, así que no hay servidor detrás de esta página ni costo por mantenerla. Una vez cargada, sigue funcionando sin conexión.',
+
+    'm.sdg.h': 'Objetivos de desarrollo',
+    'm.sdg.11': '<b>Ciudades y comunidades sostenibles</b><span>La meta 11.2 pide transporte seguro con atención a la niñez. La meta 11.7 pide espacio público seguro.</span>',
+    'm.sdg.4': '<b>Educación de calidad</b><span>La meta 4.a pide entornos de aprendizaje seguros. Un trayecto que un niño teme hacer lo deja fuera de la escuela.</span>',
+    'm.sdg.16': '<b>Paz, justicia e instituciones sólidas</b><span>La meta 16.2 pide el fin de la violencia contra la niñez, aquí usando registros que esas instituciones ya publican.</span>',
+    'm.sdg.10': '<b>Reducción de las desigualdades</b><span>Los estudiantes que cargan con este riesgo son los que no tienen auto ni quien los lleve. Para ellos se trazan estas rutas.</span>',
+
+    'm.next.h': 'Dónde corre después',
+    'm.next.1': 'Un solo recuadro de coordenadas en <code>config.py</code> es lo único específico de Los Ángeles aquí. El proceso necesita registros de incidentes geolocalizados, ubicaciones de escuelas y OpenStreetMap, que ya cubre el planeta. Chicago, Nueva York, Seattle, Denver, Austin, Baltimore, Toronto y Londres publican datos de incidentes con una forma compatible, así que apuntar esto a una de ellas es configuración, no una reescritura.',
+
+    'm.limits.h': 'Lo que esto no puede decirte',
+    'm.limits.1': '<strong>El delito reportado no es todo el delito.</strong> Las tasas de denuncia varían entre barrios y con el estatus migratorio, así que una puntuación baja refleja en parte quién llama a la policía.',
+    'm.limits.2': '<strong>Las ubicaciones son aproximadas.</strong> El LAPD redondea las coordenadas para proteger a las víctimas, y por eso el modelo suaviza sobre 120 m.',
+    'm.limits.3': '<strong>Los datos terminan en diciembre de 2024</strong>, cuando el LAPD cambió a un nuevo sistema de registros. Son completos y estables, y no están en vivo.',
+    'm.limits.4': '<strong>Las puntuaciones son relativas a Los Ángeles.</strong> Un 20 significa tranquilo para los estándares de esta ciudad.',
+    'm.limits.5': '<strong>Esto es una segunda opinión sobre una caminata.</strong> Una calle vacía que al modelo le gusta puede ser peor que una concurrida que califica mal, y tú sabes cosas de tu propio barrio que una tabla de delitos no registra.',
+
+    'm.about.h': 'Sobre este proyecto',
+    'm.about.1': 'Hecho por tres estudiantes de Los Ángeles. Quedó en tercer lugar en el reto Code for Transportation de Young Coders’ Sphere en agosto de 2026, y ha seguido creciendo desde entonces: español, autobús y tren, un informe por escuela, tarjetas para imprimir y una versión que funciona sin conexión. El código está abierto en <a href="https://github.com/safe-routes-la/safe-routes-la.github.io" target="_blank" rel="noopener">github.com/safe-routes-la</a>.',
+
+    'hint': 'Acércate para ver cómo califica cada cuadra',
+    'lg.h': 'Riesgo por cuadra',
+    'lg.calm': 'más tranquilo', 'lg.worst': 'lo peor de LA',
+    'lg.chosen': 'Ruta elegida', 'lg.short': 'Ruta más corta',
+    'lg.drawn': 'cuadras dibujadas',
+    'boot.msg': 'Cargando la red de calles',
+  },
+
+  d: {
+    'win.0': 'mañana', 'win.1': 'tarde', 'win.2': 'noche',
+    'clock.0': '5am a 10am', 'clock.1': '10am a 5pm', 'clock.2': '5pm a 5am',
+    'compass': 'N,NNE,NE,ENE,E,ESE,SE,SSE,S,SSO,SO,OSO,O,ONO,NO,NNO',
+
+    'toast.nostreet': 'No hay una calle transitable cerca de ese punto.',
+    'toast.same': 'Ese punto de salida ya está en la escuela.',
+    'toast.noroute': 'Ninguna ruta a pie conecta esos puntos.',
+    'toast.nobus': 'Ningún autobús o tren conecta esos puntos en un solo viaje. Mostrando la caminata.',
+    'toast.rcnostreet': 'Esa escuela no está cerca de una calle transitable.',
+    'toast.rcnone': 'No se pudo llegar a esa escuela desde ninguna dirección.',
+    'toast.copyfail': 'No se pudo copiar. La barra de direcciones tiene el enlace.',
+    'toast.print': 'Elige una ruta primero.',
+    'ac.none': 'No se encontró nada con eso',
+
+    'mode.none': 'Nada a menos de 900 m a pie de ambos extremos comparte una ruta, así que estas son opciones a pie. Los transbordos quedan fuera: cada cambio añade otra espera.',
+    'mode.found': 'Ir en autobús cubre distancia sin ponerte en la calle. Esperar no, así que un minuto en una parada se cobra como {w} m de caminata en ese lugar.',
+
+    'opt.short': 'Más corta', 'opt.shortH': 'lo que te da una app de mapas',
+    'opt.mid': 'Equilibrada', 'opt.midH': 'más calma por cada paso extra',
+    'opt.safe': 'Más segura', 'opt.safeH': 'la menor exposición disponible',
+    'opt.walk': 'Caminar todo el camino', 'opt.walkH': 'sin autobús, para comparar',
+    'opt.route': 'Ruta {r}',
+    'opt.then': ' y luego ',
+    'opt.rideH': '{n} min a bordo, {d} a pie',
+    'opt.change': ', un cambio',
+
+    'card.less': '{cut}% menos exposición',
+    'card.min': '{n} min',
+    'card.sub': '{d} a pie / {e}',
+
+    'why.same': 'El camino más corto aquí es también el más tranquilo que el modelo encuentra, así que no hay nada que intercambiar.',
+    'why.skips': 'Evita <b>{len}</b> de <span class="st">{st}</span>, que califica <b>{n}</b> a esta hora.',
+    'why.along': 'Va por <span class="st">{st}</span> en su lugar, con <b>{n}</b>.',
+    'why.samelen': 'Sale con la misma longitud.',
+    'why.costm': 'Te cuesta <b>{m} m</b>, menos de un minuto a pie.',
+    'why.cost1': 'Te cuesta <b>1 minuto</b>.',
+    'why.costn': 'Te cuesta <b>{n} minutos</b>.',
+    'why.drops': 'La exposición total baja <b>{cut}%</b>.',
+    'unnamed': 'un camino sin nombre',
+    'unnamed.turn': 'camino sin nombre',
+
+    'why.t.ride': 'toma <b>{r}</b> durante <b>{n} min</b>',
+    'why.t.ridex': 'toma <b>{r}</b> durante <b>{n} min</b> con un cambio en <span class="st">{stop}</span>',
+    'why.t.main': 'Camina <b>{d1}</b> hasta <span class="st">{stop}</span>, espera unos <b>{w} min</b> en total, luego {ride}, y camina <b>{d2}</b> al final.',
+    'why.t.only': 'Solo <b>{d}</b> de este viaje ocurre en la calle.',
+    'why.t.drops': 'Frente a caminar todo el camino, la exposición baja <b>{cut}%</b>.',
+    'why.t.flat': 'Es casi la misma exposición que caminarlo, así que toma la que te convenga.',
+
+    'hours.note': 'Este mismo viaje tiene más exposición en la {win} ({clock}). Cambiar la ventana arriba repite la búsqueda, que muchas veces devuelve una ruta distinta.',
+
+    'turn.board': 'Sube a {r} en {stop}',
+    'turn.wait': 'espera {n} min',
+    'turn.ride': 'Viaja {n} paradas',
+    'turn.off': 'Baja en {stop}',
+    'turn.xfer': 'Camina a {stop} para cambiar',
+    'stop.a': 'una parada',
+    'mk.board': 'Sube', 'mk.off': 'Baja', 'mk.change': 'Cambia aquí',
+    'pin.start': 'Salida',
+    'dest.custom': 'Destino elegido',
+
+    'rc.title': '{n} accesos / <b>{win}</b>',
+    'rc.ratio': 'Llegar a {school} desde el <b>{worst}</b> significa atravesar <b>{ratio} veces</b> la exposición del acceso más tranquilo, desde el <b>{best}</b>.',
+    'rc.same': 'Llegar a {school} desde el <b>{worst}</b> significa más o menos la misma exposición que el acceso más tranquilo, desde el <b>{best}</b>.',
+    'rc.tail': 'Ahí es donde un guardia de cruce, una solicitud de alumbrado o un grupo de caminata harían más bien.',
+
+    'when.now': 'Son las {clock}, así que está seleccionada la {win}. Cámbiala para planear otra caminata.',
+    'when.restored': 'Restaurado desde un enlace compartido.',
+    'preset': 'Esta página está preparada para <b>{school}</b>. Escribe de dónde sales. <a href="{href}">¿No es tu escuela?</a>',
+    'share.done': 'Enlace copiado',
+    'emb.done': 'Código copiado',
+
+    'net.saved': '<b>Guardado en este dispositivo.</b> Funciona sin conexión.',
+    'net.off': '<b>Sin conexión.</b> Las rutas siguen funcionando; el fondo del mapa no cargará.',
+
+    'boot.build': 'Construyendo el grafo de rutas',
+    'boot.sub': '{n} incidentes / {km} km de calles',
+    'boot.fail': 'Los archivos de datos no cargaron.',
+
+    'pc.k': 'Tarjeta para caminar / Safe Routes to School',
+    'pc.to': 'a {school}',
+    'pc.from': 'Desde {from}',
+    'pc.when': 'Para la {win} ({clock}), {mode}.',
+    'pc.mode.foot': 'a pie', 'pc.mode.bus': 'en autobús o tren',
+    'pc.opt': 'Opción', 'pc.time': 'Tiempo', 'pc.walk': 'A pie', 'pc.exp': 'Exposición',
+    'pc.turns': 'Calle por calle', 'pc.hours': 'Misma ruta, otra hora',
+    'pc.open': 'Abre este viaje en un teléfono',
+    'pc.foot': 'Las puntuaciones van de 0 a 100 frente a todas las cuadras de Los Ángeles a esa hora; menos es más tranquilo. Es una segunda opinión sobre una caminata, no una garantía. Datos: LAPD 2020 a 2024, LA Metro, OpenStreetMap.',
+    'pc.printed': 'Impreso el {date}',
+  },
+};
+
+==============================================================================
+FILE 13 of 13   sw.js
+Offline copy: the page and the graph stay on the device
+==============================================================================
+
+/* Offline copy of Safe Routes to School.
+ *
+ * After one visit the page, the router and the 5 MB scored graph live on the
+ * device, so a student with no data plan can still plan a walk. The basemap
+ * tiles and address lookup are third-party services and are never cached:
+ * offline, the route draws over a blank background and addresses come from a
+ * dropped pin or a shared link instead.
+ *
+ * Bump VERSION whenever anything in data/ changes; the old cache is dropped on
+ * the next activation. */
+const VERSION = 'srs-2026-09-03';
+
+const SHELL = [
+  './', 'index.html', 'app.js', 'es.js', 'manifest.webmanifest',
+  'icon.svg', 'icon-192.png', 'icon-512.png',
+  'vendor/leaflet/leaflet.js', 'vendor/leaflet/leaflet.css',
+  'vendor/leaflet/images/marker-icon.png', 'vendor/leaflet/images/marker-shadow.png',
+];
+const DATA = [
+  'data/graph_meta.json', 'data/schools.json', 'data/street_names.json',
+  'data/transit.json', 'data/graph.bin.gz',
+];
+const NEVER = /cartocdn\.com|nominatim\.openstreetmap\.org|fonts\.g|github\.com/;
+
+self.addEventListener('install', e => {
+  e.waitUntil((async () => {
+    const c = await caches.open(VERSION);
+    await c.addAll([...SHELL, ...DATA]);
+    await self.skipWaiting();
+  })());
+});
+
+self.addEventListener('activate', e => {
+  e.waitUntil((async () => {
+    for (const k of await caches.keys()) if (k !== VERSION) await caches.delete(k);
+    await self.clients.claim();
+  })());
+});
+
+self.addEventListener('fetch', e => {
+  const req = e.request;
+  if (req.method !== 'GET' || NEVER.test(req.url)) return;
+  const url = new URL(req.url);
+  const isData = url.origin === location.origin && url.pathname.includes('/data/');
+
+  e.respondWith((async () => {
+    const c = await caches.open(VERSION);
+    if (isData) {
+      // Data is versioned by VERSION, so the copy on the device is the copy.
+      const hit = await c.match(req);
+      if (hit) return hit;
+      const res = await fetch(req);
+      if (res.ok) c.put(req, res.clone());
+      return res;
+    }
+    // Everything else: fresh when online so a deploy shows up at once, and
+    // the saved copy when the network is gone.
+    try {
+      const res = await fetch(req);
+      if (res.ok) c.put(req, res.clone());
+      return res;
+    } catch (err) {
+      const hit = await c.match(req, { ignoreSearch: url.origin === location.origin });
+      if (hit) return hit;
+      throw err;
+    }
+  })());
+});

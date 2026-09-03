@@ -20,10 +20,7 @@ const NOMINATIM = 'https://nominatim.openstreetmap.org/search';
  * ladder, throw away duplicates, and offer only the options that differ. */
 const LADDER = [0, 0.5, 1, 1.75, 2.75, 4.25, 7];
 
-const WINDOWS = ['morning', 'afternoon', 'evening'];
-const WINDOW_CLOCK = ['5am to 10am', '10am to 5pm', '5pm to 5am'];
-const COMPASS = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE',
-                 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+const N_COMPASS = 16;
 
 /* Zoomed out, drawing every above-average block is an unreadable smear, so the
  * threshold rises with distance and detail fills in as you approach one walk. */
@@ -39,9 +36,170 @@ const S = {
   nNodes: 0, nEdges: 0,
   bucket: 1, pick: 2, mode: 'foot',
   origin: null, school: null,
-  routes: null,
+  routes: null, report: null,
   showRisk: true, showSchools: false,
+  lang: 'en', embed: false, preset: null,
 };
+
+/* ------------------------------------------------------------ language */
+/* English lives in the HTML and in the table below; other languages ship as
+ * es.js-style files that register on window.LANGS. Static text is swapped by
+ * data-t key, and everything built at run time goes through t(). */
+const EN = {
+  'win.0': 'morning', 'win.1': 'afternoon', 'win.2': 'evening',
+  'clock.0': '5am to 10am', 'clock.1': '10am to 5pm', 'clock.2': '5pm to 5am',
+  'compass': 'N,NNE,NE,ENE,E,ESE,SE,SSE,S,SSW,SW,WSW,W,WNW,NW,NNW',
+
+  'toast.nostreet': 'No walkable street near that point.',
+  'toast.same': 'That start point is already at the school.',
+  'toast.noroute': 'No walking route connects those points.',
+  'toast.nobus': 'No single bus or rail ride links those points. Showing the walk.',
+  'toast.rcnostreet': 'That school is not near a walkable street.',
+  'toast.rcnone': 'Could not reach that school from any direction.',
+  'toast.copyfail': 'Copy failed. The address bar holds the link.',
+  'toast.print': 'Pick a route first.',
+  'ac.none': 'Nothing found for that',
+
+  'mode.none': 'Nothing within a 900 m walk of both ends shares one route, so these are '
+    + 'walking options. Transfers are out of scope: each change adds another wait to stand through.',
+  'mode.found': 'Riding covers distance without putting you on the street. Waiting does '
+    + 'not, so a minute at a stop is charged like {w} m of walking there.',
+
+  'opt.short': 'Shortest', 'opt.shortH': 'what a map app gives you',
+  'opt.mid': 'Balanced', 'opt.midH': 'most calm per extra step',
+  'opt.safe': 'Safest', 'opt.safeH': 'lowest exposure available',
+  'opt.walk': 'Walk the whole way', 'opt.walkH': 'no bus, for comparison',
+  'opt.route': 'Route {r}',
+  'opt.then': ' then ',
+  'opt.rideH': '{n} min riding, {d} on foot',
+  'opt.change': ', one change',
+
+  'card.less': '{cut}% less exposure',
+  'card.min': '{n} min',
+  'card.sub': '{d} walk / {e}',
+
+  'why.same': 'The shortest way here is also the calmest one the model can find, so '
+    + 'there is nothing to trade off.',
+  'why.skips': 'Skips <b>{len}</b> of <span class="st">{st}</span>, which scores <b>{n}</b> at this hour.',
+  'why.along': 'Goes along <span class="st">{st}</span> instead, at <b>{n}</b>.',
+  'why.samelen': 'It comes out the same length.',
+  'why.costm': 'Costs you <b>{m} m</b>, under a minute of walking.',
+  'why.cost1': 'Costs you <b>1 minute</b>.',
+  'why.costn': 'Costs you <b>{n} minutes</b>.',
+  'why.drops': 'Total exposure drops <b>{cut}%</b>.',
+  'unnamed': 'an unnamed path',
+  'unnamed.turn': 'unnamed path',
+
+  'why.t.ride': 'ride <b>{r}</b> for <b>{n} min</b>',
+  'why.t.ridex': 'ride <b>{r}</b> for <b>{n} min</b> with one change at <span class="st">{stop}</span>',
+  'why.t.main': 'Walk <b>{d1}</b> to <span class="st">{stop}</span>, wait about <b>{w} min</b> '
+    + 'in total, then {ride}, then walk <b>{d2}</b> at the other end.',
+  'why.t.only': 'Only <b>{d}</b> of this trip happens on the street.',
+  'why.t.drops': 'Against walking the whole way, exposure drops <b>{cut}%</b>.',
+  'why.t.flat': 'That is about the same exposure as walking it, so take whichever suits you.',
+
+  'hours.note': 'This same trip carries the most exposure in the {win} ({clock}). Changing '
+    + 'the window above re-runs the search, which often returns a different route entirely.',
+
+  'turn.board': 'Board {r} at {stop}',
+  'turn.wait': 'wait {n} min',
+  'turn.ride': 'Ride {n} stops',
+  'turn.off': 'Get off at {stop}',
+  'turn.xfer': 'Walk to {stop} to change',
+  'stop.a': 'a stop',
+  'mk.board': 'Board', 'mk.off': 'Get off', 'mk.change': 'Change here',
+  'pin.start': 'Start',
+  'dest.custom': 'Chosen destination',
+
+  'rc.title': '{n} approaches / <b>{win}</b>',
+  'rc.ratio': 'Approaching {school} from the <b>{worst}</b> means walking through '
+    + '<b>{ratio} times</b> the exposure of the calmest approach, from the <b>{best}</b>.',
+  'rc.same': 'Approaching {school} from the <b>{worst}</b> means walking through about the '
+    + 'same exposure as the calmest approach, from the <b>{best}</b>.',
+  'rc.tail': 'That is where a crossing guard, a lighting request or a walking group would do the most good.',
+
+  'when.now': 'It is {clock}, so {win} is selected. Change it to plan a different walk.',
+  'when.restored': 'Restored from a shared link.',
+  'preset': 'This page is set up for <b>{school}</b>. Type where you start. '
+    + '<a href="{href}">Not your school?</a>',
+  'share.done': 'Link copied',
+  'emb.done': 'Code copied',
+
+  'net.saved': '<b>Saved on this device.</b> Works without a connection.',
+  'net.off': '<b>Offline.</b> Routes still work; the map background will not load.',
+
+  'boot.build': 'Building the routing graph',
+  'boot.sub': '{n} incidents / {km} km of street',
+  'boot.fail': 'The data files did not load.',
+
+  'pc.k': 'Walking card / Safe Routes to School',
+  'pc.to': 'to {school}',
+  'pc.from': 'From {from}',
+  'pc.when': 'For the {win} ({clock}), {mode}.',
+  'pc.mode.foot': 'on foot', 'pc.mode.bus': 'by bus or rail',
+  'pc.opt': 'Option', 'pc.time': 'Time', 'pc.walk': 'On foot', 'pc.exp': 'Exposure',
+  'pc.turns': 'Street by street', 'pc.hours': 'Same route, different hour',
+  'pc.open': 'Open this trip on a phone',
+  'pc.foot': 'Scores run 0 to 100 against every block in Los Angeles at that hour; lower is '
+    + 'calmer. This is a second opinion about a walk, not a guarantee. Data: LAPD 2020 to '
+    + '2024, LA Metro, OpenStreetMap.',
+  'pc.printed': 'Printed {date}',
+};
+
+const LANGS = Object.assign({ en: { name: 'English', s: {}, d: EN } }, window.LANGS || {});
+
+function t(key, vars) {
+  const pack = LANGS[S.lang] || LANGS.en;
+  let str = (pack.d && pack.d[key]) != null ? pack.d[key] : EN[key];
+  if (str == null) return key;
+  if (vars) for (const k in vars) str = str.split(`{${k}}`).join(vars[k]);
+  return str;
+}
+const winName = b => t('win.' + b);
+const winClock = b => t('clock.' + b);
+const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+const compassName = k => t('compass').split(',')[k];
+
+function applyLang() {
+  const pack = LANGS[S.lang] || LANGS.en;
+  document.documentElement.lang = S.lang;
+  for (const el of document.querySelectorAll('[data-t]')) {
+    if (el.dataset.en == null) el.dataset.en = el.innerHTML;
+    const k = el.dataset.t;
+    el.innerHTML = (S.lang !== 'en' && pack.s[k]) ? pack.s[k] : el.dataset.en;
+  }
+  for (const el of document.querySelectorAll('[data-tp]')) {
+    if (el.dataset.enp == null) el.dataset.enp = el.placeholder;
+    const k = el.dataset.tp;
+    el.placeholder = (S.lang !== 'en' && pack.s[k]) ? pack.s[k] : el.dataset.enp;
+  }
+  for (const el of document.querySelectorAll('[data-dyn]')) {
+    el.innerHTML = t(el.dataset.dyn, el.dataset.dynVars ? JSON.parse(el.dataset.dynVars) : null);
+  }
+  [...$('lang').children].forEach(c => c.classList.toggle('on', c.dataset.l === S.lang));
+  $('lg-when').textContent = winName(S.bucket);
+  renderPreset();
+  renderEmbed();
+  renderNet();
+  if (S.routes) { renderCards(); select(S.pick, false); }
+  if (S.report) renderReport();
+}
+
+/* Text set at run time that must survive a language switch is tagged with the
+ * key it came from, so applyLang can rebuild it. */
+function setDyn(el, key, vars) {
+  el.dataset.dyn = key;
+  if (vars) el.dataset.dynVars = JSON.stringify(vars); else delete el.dataset.dynVars;
+  el.innerHTML = t(key, vars);
+}
+
+function setLang(l, persist = true) {
+  if (!LANGS[l]) l = 'en';
+  S.lang = l;
+  if (persist) { try { localStorage.setItem('srs-lang', l); } catch (e) { /* private mode */ } }
+  applyLang();
+  writeUrl();
+}
 
 /* ------------------------------------------------------------------- map */
 const map = L.map('map', { zoomControl: false, preferCanvas: true })
@@ -64,7 +222,7 @@ const schoolLayer = L.layerGroup();
 /* ------------------------------------------------------------ utilities */
 const $ = id => document.getElementById(id);
 const fmtM = m => m < 950 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(2)} km`;
-const fmtMin = m => `${Math.max(1, Math.round(m / WALK_MPS / 60))} min`;
+const fmtMin = m => t('card.min', { n: Math.max(1, Math.round(m / WALK_MPS / 60)) });
 const risk = (ei, b) => S.er[ei * 3 + b] / 255;
 const streetName = ei => (S.ename[ei] === NO_NAME ? null : S.names[S.ename[ei]]);
 
@@ -298,14 +456,12 @@ function byStreet(edgeIds, bucket) {
 }
 
 const streetLabel = s =>
-  s.name === ' unnamed' ? 'an unnamed path' : s.name;
+  s.name === ' unnamed' ? t('unnamed') : s.name;
 
 function explain(sel, base, bucket) {
   if (sel.edges.length === base.edges.length
       && sel.edges.every((e, i) => e === base.edges[i])) {
-    return { same: true, html:
-      'The shortest way here is also the calmest one the model can find, so '
-      + 'there is nothing to trade off.' };
+    return { same: true, html: t('why.same') };
   }
   const selSet = new Set(sel.edges), baseSet = new Set(base.edges);
   const avoided = byStreet(base.edges.filter(e => !selSet.has(e)), bucket);
@@ -319,21 +475,19 @@ function explain(sel, base, bucket) {
   const parts = [];
   if (avoided.length) {
     const a = avoided[0];
-    parts.push(`Skips <b>${fmtM(a.len)}</b> of `
-      + `<span class="st">${streetLabel(a)}</span>, which scores `
-      + `<b>${Math.round(a.worst * 100)}</b> at this hour.`);
+    parts.push(t('why.skips', { len: fmtM(a.len), st: streetLabel(a),
+                                n: Math.round(a.worst * 100) }));
   }
   if (taken.length) {
-    const t = taken.find(x => x.name !== ' unnamed') || taken[0];
-    parts.push(`Goes along <span class="st">${streetLabel(t)}</span> instead, `
-      + `at <b>${Math.round(t.worst * 100)}</b>.`);
+    const tk = taken.find(x => x.name !== ' unnamed') || taken[0];
+    parts.push(t('why.along', { st: streetLabel(tk), n: Math.round(tk.worst * 100) }));
   }
   const cost = extra < 15
-    ? 'It comes out the same length.'
+    ? t('why.samelen')
     : (mins < 1
-        ? `Costs you <b>${Math.round(extra)} m</b>, under a minute of walking.`
-        : `Costs you <b>${mins} minute${mins === 1 ? '' : 's'}</b>.`);
-  parts.push(`${cost} Total exposure drops <b>${cut}%</b>.`);
+        ? t('why.costm', { m: Math.round(extra) })
+        : (mins === 1 ? t('why.cost1') : t('why.costn', { n: mins })));
+  parts.push(`${cost} ${t('why.drops', { cut })}`);
 
   return { same: false, flat: cut <= 2, html: parts.join(' ') };
 }
@@ -361,7 +515,7 @@ function mergeSameName(segs) {
 
 function turnList(r, bucket) {
   let segs = mergeSameName(r.edges.map(ei => ({
-    label: streetName(ei) || 'unnamed path',
+    label: streetName(ei) || t('unnamed.turn'),
     len: S.ed[ei],
     worst: risk(ei, bucket),
   })));
@@ -448,8 +602,8 @@ function pin(latlng, color, label) {
 function redrawPins() {
   pinLayer.clearLayers();
   if (S.origin) {
-    pin([S.origin.lat, S.origin.lon], '#211f18', 'Start')
-      .bindTooltip('Start', { direction: 'top', offset: [0, -8] }).addTo(pinLayer);
+    pin([S.origin.lat, S.origin.lon], '#211f18', t('pin.start'))
+      .bindTooltip(t('pin.start'), { direction: 'top', offset: [0, -8] }).addTo(pinLayer);
   }
   if (S.school) {
     pin([S.school.lat, S.school.lon], '#3c7a4e', S.school.name)
@@ -666,6 +820,7 @@ function transitOptions(origin, school, bucket, lambda) {
       rideMin: c.rideMin, waitMin: c.waitMin, stopRisk: stopRiskAt(bStop),
       dist: walkDist, exposure, timeMin,
       routeLabel: c.legs.map(l => T.patterns[l.pi].r).join(' then '),
+      routeNames: c.legs.map(l => T.patterns[l.pi].r),
       isRail: c.legs.every(l => T.patterns[l.pi].k === 'rail'),
     });
   }
@@ -702,12 +857,12 @@ function buildOptions(src, dst, bucket) {
   const all = [...seen.values()];
   if (!all.length) return null;
 
-  const foot = (r, label, hint) =>
-    ({ kind: 'foot', r, exposure: r.exposure, label, hint });
+  const foot = (r, labelKey, hintKey) =>
+    ({ kind: 'foot', r, exposure: r.exposure, labelKey, hintKey });
 
   const fast = all.reduce((a, b) => (b.dist < a.dist ? b : a));
   const safe = all.reduce((a, b) => (b.exposure < a.exposure ? b : a));
-  const out = [foot(fast, 'Shortest', 'what a map app gives you')];
+  const out = [foot(fast, 'opt.short', 'opt.shortH')];
   if (sig(safe) === sig(fast)) return out;
 
   // A middle option only earns its place if it buys more calm per extra metre
@@ -720,31 +875,35 @@ function buildOptions(src, dst, bucket) {
     const eff = cut / Math.max(m.dist - fast.dist, 1);
     if (eff > bestEff) { bestEff = eff; mid = m; }
   }
-  if (mid) out.push(foot(mid, 'Balanced', 'most calm per extra step'));
-  out.push(foot(safe, 'Safest', 'lowest exposure available'));
+  if (mid) out.push(foot(mid, 'opt.mid', 'opt.midH'));
+  out.push(foot(safe, 'opt.safe', 'opt.safeH'));
   return out;
 }
+
+/* "35 then 217" reads as a sentence, so the joiner is translated at render time. */
+const rideName = o => o.routeNames.join(t('opt.then'));
+const optLabel = o => (o.routeNames ? (o.labelKey ? t(o.labelKey, { r: rideName(o) }) : rideName(o))
+                                    : t(o.labelKey));
+const optHint = o => (o.hintKey ? t(o.hintKey, o.hintVars) + (o.hintXfer ? t('opt.change') : '') : o.hint);
+const isShortest = o => o.kind === 'foot' && o.labelKey === 'opt.short';
 
 function compute(fit = true) {
   if (!S.origin || !S.school) return;
   const src = nearestNode(S.origin.lat, S.origin.lon);
   const dst = nearestNode(S.school.lat, S.school.lon);
-  if (src < 0 || dst < 0) { toast('No walkable street near that point.'); return; }
-  if (src === dst) { toast('That start point is already at the school.'); return; }
+  if (src < 0 || dst < 0) { toast(t('toast.nostreet')); return; }
+  if (src === dst) { toast(t('toast.same')); return; }
 
   spokeLayer.clearLayers();
   const onFoot = buildOptions(src, dst, S.bucket);
-  if (!onFoot) { toast('No walking route connects those points.'); return; }
+  if (!onFoot) { toast(t('toast.noroute')); return; }
 
   let opts = onFoot;
   if (S.mode === 'bus') {
     const rides = transitOptions(S.origin, S.school, S.bucket, 3.0);
     if (!rides.length) {
-      toast('No single bus or rail ride links those points. Showing the walk.');
-      $('mode-note').textContent =
-        'Nothing within a 900 m walk of both ends shares one route, so these are '
-        + 'walking options. Transfers are out of scope: each change adds another '
-        + 'wait to stand through.';
+      toast(t('toast.nobus'));
+      setDyn($('mode-note'), 'mode.none');
     } else {
       // Always keep the calmest walk on screen, so the bus is compared against
       // the real alternative rather than presented on its own.
@@ -753,15 +912,13 @@ function compute(fit = true) {
         ...o,
         // Rail lines already read as names ("Metro E Line"), so only bus
         // numbers need the word Route in front of them.
-        label: /line/i.test(o.routeLabel) ? o.routeLabel : `Route ${o.routeLabel}`,
-        hint: `${Math.round(o.rideMin)} min riding, ${fmtM(o.dist)} on foot`
-            + (o.xfer ? ', one change' : ''),
+        labelKey: /line/i.test(o.routeLabel) ? null : 'opt.route',
+        label: o.routeLabel,
+        hintKey: 'opt.rideH', hintVars: { n: Math.round(o.rideMin), d: fmtM(o.dist) },
+        hintXfer: !!o.xfer,
       }));
-      opts.push({ ...walkRef, label: 'Walk the whole way',
-                  hint: 'no bus, for comparison' });
-      $('mode-note').textContent =
-        'Riding covers distance without putting you on the street. Waiting does '
-        + `not, so a minute at a stop is charged like ${WAIT_M_PER_MIN} m of walking there.`;
+      opts.push({ ...walkRef, labelKey: 'opt.walk', hintKey: 'opt.walkH', hintVars: null });
+      setDyn($('mode-note'), 'mode.found', { w: WAIT_M_PER_MIN });
     }
   }
 
@@ -782,18 +939,18 @@ function renderCards() {
 
   $('cards').innerHTML = S.routes.map((o, i) => {
     const cut = refExp > 0 ? Math.round((1 - o.exposure / refExp) * 100) : 0;
-    const sub = (o === ref || cut <= 0) ? o.hint : `${cut}% less exposure`;
+    const sub = (o === ref || cut <= 0) ? optHint(o) : t('card.less', { cut });
     const intensity = optWalk(o) > 0 ? o.exposure / optWalk(o) : 0;
     return `<div class="rc${i === S.pick ? ' on' : ''}" data-i="${i}">
       <span class="swatch" style="background:${bandColor(intensity)}"></span>
-      <span class="who"><b>${o.label}</b><small>${sub}</small></span>
-      <span class="num"><b>${Math.max(1, Math.round(optTime(o)))} min</b><small>${fmtM(optWalk(o))} walk / ${expUnits(o).toFixed(1)}</small></span>
+      <span class="who"><b>${optLabel(o)}</b><small>${sub}</small></span>
+      <span class="num"><b>${t('card.min', { n: Math.max(1, Math.round(optTime(o))) })}</b><small>${t('card.sub', { d: fmtM(optWalk(o)), e: expUnits(o).toFixed(1) })}</small></span>
     </div>`;
   }).join('');
   $('r-cards').style.display = '';
 }
 
-const stopName = si => T.names[T.stops[si][2]] || 'a stop';
+const stopName = si => T.names[T.stops[si][2]] || t('stop.a');
 
 function routeExposureAt(r, b) {
   let e = 0;
@@ -819,7 +976,7 @@ function drawWalk(r, colour, weight) {
 
 function drawSelection(o) {
   routeLayer.clearLayers();
-  const ref = S.routes.find(x => x.kind === 'foot' && x.label === 'Shortest');
+  const ref = S.routes.find(isShortest);
   if (ref && ref !== o) {
     L.polyline(routeLatLngs(ref.r), {
       color: '#211f18', weight: 2.5, opacity: .45, dashArray: '3,6',
@@ -854,8 +1011,8 @@ function drawSelection(o) {
       interactive: false,
     }).addTo(routeLayer);
   }
-  const marks = [[o.bStop, 'Board'], [o.aStop, 'Get off']];
-  if (o.xfer) marks.push([o.xfer.to, 'Change here']);
+  const marks = [[o.bStop, t('mk.board')], [o.aStop, t('mk.off')]];
+  if (o.xfer) marks.push([o.xfer.to, t('mk.change')]);
   for (const [si, lbl] of marks) {
     L.circleMarker([T.stops[si][0], T.stops[si][1]], {
       radius: 5.5, color: '#211f18', weight: 2, fillColor: '#c8912b', fillOpacity: 1,
@@ -866,31 +1023,24 @@ function drawSelection(o) {
 function renderWhy(o) {
   const el = $('because');
   const walkRef = S.routes.find(x => x.kind === 'foot'
-    && (S.mode === 'bus' || x.label === 'Shortest'));
+    && (S.mode === 'bus' || isShortest(x)));
 
   if (o.kind === 'transit') {
     const cut = walkRef && walkRef.exposure > 0
       ? Math.round((1 - o.exposure / walkRef.exposure) * 100) : 0;
     const ride = o.xfer
-      ? `ride <b>${o.routeLabel}</b> for <b>${Math.round(o.rideMin)} min</b> with `
-        + `one change at <span class="st">${stopName(o.xfer.to)}</span>`
-      : `ride <b>${o.routeLabel}</b> for <b>${Math.round(o.rideMin)} min</b>`;
+      ? t('why.t.ridex', { r: rideName(o), n: Math.round(o.rideMin), stop: stopName(o.xfer.to) })
+      : t('why.t.ride', { r: rideName(o), n: Math.round(o.rideMin) });
     const bits = [
-      `Walk <b>${fmtM(o.legA ? o.legA.dist : 0)}</b> to `
-      + `<span class="st">${stopName(o.bStop)}</span>, wait about `
-      + `<b>${Math.round(o.waitMin)} min</b> in total, then ${ride}, `
-      + `then walk <b>${fmtM(o.legB ? o.legB.dist : 0)}</b> at the other end.`,
-      `Only <b>${fmtM(o.dist)}</b> of this trip happens on the street.`,
+      t('why.t.main', { d1: fmtM(o.legA ? o.legA.dist : 0), stop: stopName(o.bStop),
+                        w: Math.round(o.waitMin), ride, d2: fmtM(o.legB ? o.legB.dist : 0) }),
+      t('why.t.only', { d: fmtM(o.dist) }),
     ];
-    if (walkRef) {
-      bits.push(cut > 2
-        ? `Against walking the whole way, exposure drops <b>${cut}%</b>.`
-        : `That is about the same exposure as walking it, so take whichever suits you.`);
-    }
+    if (walkRef) bits.push(cut > 2 ? t('why.t.drops', { cut }) : t('why.t.flat'));
     el.className = 'because' + (cut <= 2 ? ' flat' : '');
     el.innerHTML = bits.join(' ');
   } else {
-    const base = (S.routes.find(x => x.kind === 'foot' && x.label === 'Shortest') || o).r;
+    const base = (S.routes.find(isShortest) || o).r;
     const ex = explain(o.r, base, S.bucket);
     el.className = 'because' + (ex.flat ? ' flat' : '');
     el.innerHTML = ex.html;
@@ -903,15 +1053,12 @@ function renderHours(o) {
   const max = Math.max(...vals, 0.01);
   $('hours').innerHTML = vals.map((v, b) => `
     <div class="hrow${b === S.bucket ? ' now' : ''}">
-      <span>${WINDOWS[b][0].toUpperCase() + WINDOWS[b].slice(1)}</span>
+      <span>${cap(winName(b))}</span>
       <span class="track"><i class="bar" style="width:${(v / max * 100).toFixed(1)}%;background:${bandColor(optWalk(o) ? exposureAt(o, b) / optWalk(o) : 0)}"></i></span>
       <b>${v.toFixed(1)}</b>
     </div>`).join('');
   const worst = vals.indexOf(Math.max(...vals));
-  $('hours-note').textContent =
-    `This same trip carries the most exposure in the ${WINDOWS[worst]} `
-    + `(${WINDOW_CLOCK[worst]}). Changing the window above re-runs the search, `
-    + `which often returns a different route entirely.`;
+  $('hours-note').textContent = t('hours.note', { win: winName(worst), clock: winClock(worst) });
   $('r-hours').style.display = '';
 }
 
@@ -929,13 +1076,13 @@ function renderTurns(o) {
     o.legs.forEach((leg, k) => {
       const pat = T.patterns[leg.pi];
       const board = pat.s[leg.posA], off = pat.s[leg.posB];
-      html += turnRow(`Board ${pat.r} at ${stopName(board)}`,
-                      `wait ${Math.round(pat.w)} min`, o.stopRisk);
-      html += turnRow(`Ride ${leg.posB - leg.posA} stops`,
-                      `${Math.round(Math.max(0, pat.t[leg.posB] - pat.t[leg.posA]) / 60)} min`, 0);
-      html += turnRow(`Get off at ${stopName(off)}`, '', o.stopRisk);
+      html += turnRow(t('turn.board', { r: pat.r, stop: stopName(board) }),
+                      t('turn.wait', { n: Math.round(pat.w) }), o.stopRisk);
+      html += turnRow(t('turn.ride', { n: leg.posB - leg.posA }),
+                      t('card.min', { n: Math.round(Math.max(0, pat.t[leg.posB] - pat.t[leg.posA]) / 60) }), 0);
+      html += turnRow(t('turn.off', { stop: stopName(off) }), '', o.stopRisk);
       if (k === 0 && o.xfer && o.xfer.metres > 0) {
-        html += turnRow(`Walk to ${stopName(o.xfer.to)} to change`,
+        html += turnRow(t('turn.xfer', { stop: stopName(o.xfer.to) }),
                         fmtM(o.xfer.metres), o.stopRisk);
       }
     });
@@ -961,6 +1108,7 @@ function select(i, fit = true) {
   renderHours(o);
   renderTurns(o);
   $('r-share').style.display = '';
+  $('report').href = reportUrl();
 
   writeUrl();
   if (fit) {
@@ -972,14 +1120,14 @@ function select(i, fit = true) {
 /* -------------------------------------------------------- school report */
 function report(school) {
   const dst = nearestNode(school.lat, school.lon);
-  if (dst < 0) { toast('That school is not near a walkable street.'); return; }
+  if (dst < 0) { toast(t('toast.rcnostreet')); return; }
   const R = 1200;
   const rows = [];
   spokeLayer.clearLayers();
   routeLayer.clearLayers();
 
-  for (let k = 0; k < COMPASS.length; k++) {
-    const th = k * 2 * Math.PI / COMPASS.length;
+  for (let k = 0; k < N_COMPASS; k++) {
+    const th = k * 2 * Math.PI / N_COMPASS;
     const lat = school.lat + (R * Math.cos(th)) / 111320;
     const lon = school.lon + (R * Math.sin(th)) / 92500;
     const src = nearestNode(lat, lon);
@@ -988,12 +1136,11 @@ function report(school) {
     // direction dangerous in the first place.
     const r = route(src, dst, 0, S.bucket);
     if (!r) continue;
-    rows.push({ dir: COMPASS[k], r });
+    rows.push({ k, r });
   }
-  if (!rows.length) { toast('Could not reach that school from any direction.'); return; }
+  if (!rows.length) { toast(t('toast.rcnone')); return; }
 
   rows.sort((a, b) => b.r.score - a.r.score);
-  const worst = rows[0], best = rows[rows.length - 1];
 
   for (const row of rows) {
     L.polyline(routeLatLngs(row.r), {
@@ -1005,21 +1152,26 @@ function report(school) {
   pin([school.lat, school.lon], '#211f18', school.name)
     .bindTooltip(school.name, { direction: 'top', offset: [0, -8] }).addTo(pinLayer);
 
-  $('rc-title').innerHTML = `${rows.length} approaches / <b>${WINDOWS[S.bucket]}</b>`;
+  S.report = { school, rows, bucket: S.bucket };
+  renderReport();
+  map.fitBounds(L.featureGroup(spokeLayer.getLayers()).getBounds().pad(0.08),
+                { animate: false });
+}
+
+function renderReport() {
+  const { school, rows, bucket } = S.report;
+  const worst = rows[0], best = rows[rows.length - 1];
+  $('rc-title').innerHTML = t('rc.title', { n: rows.length, win: winName(bucket) });
   $('rc-body').innerHTML = rows.map(row => {
     const cls = row === worst ? ' class="worst"' : row === best ? ' class="best"' : '';
-    return `<tr${cls}><td class="dir"><span class="swatch" style="background:${bandColor(row.r.score / 100)}"></span>${row.dir}</td>`
+    return `<tr${cls}><td class="dir"><span class="swatch" style="background:${bandColor(row.r.score / 100)}"></span>${compassName(row.k)}</td>`
       + `<td>${fmtM(row.r.dist)}</td><td class="sc">${Math.round(row.r.score)}</td></tr>`;
   }).join('');
   const ratio = best.r.score > 0 ? (worst.r.score / best.r.score) : 0;
-  $('rc-note').innerHTML =
-    `Approaching ${school.name} from the <b>${worst.dir}</b> means walking through `
-    + `${ratio >= 1.15 ? `<b>${ratio.toFixed(1)} times</b> the exposure of` : 'about the same exposure as'} `
-    + `the calmest approach, from the <b>${best.dir}</b>. `
-    + `That is where a crossing guard, a lighting request or a walking group would do the most good.`;
+  const vars = { school: school.name, worst: compassName(worst.k), best: compassName(best.k),
+                 ratio: ratio.toFixed(1) };
+  $('rc-note').innerHTML = `${t(ratio >= 1.15 ? 'rc.ratio' : 'rc.same', vars)} ${t('rc.tail')}`;
   $('rc-out').style.display = '';
-  map.fitBounds(L.featureGroup(spokeLayer.getLayers()).getBounds().pad(0.08),
-                { animate: false });
 }
 
 /* --------------------------------------------------------- autocomplete */
@@ -1045,7 +1197,7 @@ function attachAC(inputId, listId, search, onPick) {
         items = (await search(q)) || [];
       } catch (e) { items = []; }
       if (!items.length) {
-        list.innerHTML = '<div class="none">Nothing found for that</div>';
+        list.innerHTML = `<div class="none">${t('ac.none')}</div>`;
         list.classList.add('on');
         return;
       }
@@ -1109,11 +1261,41 @@ function writeUrl() {
   p.set('when', String(S.bucket));
   p.set('mode', S.mode);
   p.set('pick', String(S.pick));
+  if (S.lang !== 'en') p.set('lang', S.lang);
+  if (S.embed) p.set('embed', '1');
   history.replaceState(null, '', `${location.pathname}?${p}`);
+}
+
+/* The link a school pastes into its own site, or texts to families. It carries
+ * the school and the language, and nothing about any one student's home. */
+function presetUrl(school) {
+  const p = new URLSearchParams();
+  p.set('school', school.id);
+  if (S.lang !== 'en') p.set('lang', S.lang);
+  return `${location.origin}${location.pathname}?${p}`;
+}
+
+function reportUrl() {
+  const link = location.href;
+  const title = `Route problem: ${S.school ? S.school.name : 'unknown school'}`;
+  const body = `**What looks wrong?**\n\n(describe the block or street)\n\n**The trip:** ${link}\n`;
+  return 'https://github.com/safe-routes-la/safe-routes-la.github.io/issues/new'
+    + `?title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`;
 }
 
 function readUrl() {
   const p = new URLSearchParams(location.search);
+
+  // A school on its own: the page a school hands out, with nothing else set.
+  const presetId = p.get('school');
+  if (presetId) {
+    const sc = S.schools.find(s => s.id === presetId);
+    if (sc) {
+      S.preset = sc; S.school = sc;
+      $('school').value = sc.name;
+      $('rc-school').value = sc.name; S.rcSchool = sc; $('rc-run').disabled = false;
+    }
+  }
   const from = p.get('from'), to = p.get('to');
   if (!from || !to) return false;
   const [flat, flon] = from.split(',').map(Number);
@@ -1124,7 +1306,7 @@ function readUrl() {
   let sc = S.schools.find(s => s.id === to);
   if (!sc && to.includes(',')) {
     const [tlat, tlon] = to.split(',').map(Number);
-    if (isFinite(tlat) && isFinite(tlon)) sc = { name: 'Chosen destination', lat: tlat, lon: tlon };
+    if (isFinite(tlat) && isFinite(tlon)) sc = { name: t('dest.custom'), lat: tlat, lon: tlon };
   }
   if (!sc) return false;
   S.school = sc;
@@ -1146,7 +1328,7 @@ function readUrl() {
 function setWindow(b, recompute = true) {
   S.bucket = b;
   [...$('when').children].forEach(c => c.classList.toggle('on', +c.dataset.b === b));
-  $('lg-when').textContent = WINDOWS[b];
+  $('lg-when').textContent = winName(b);
   drawRisk();
   if (recompute && S.origin && S.school) compute(false);
 }
@@ -1192,12 +1374,144 @@ $('share').addEventListener('click', async () => {
   writeUrl();
   try {
     await navigator.clipboard.writeText(location.href);
-    $('share').textContent = 'Link copied';
-    setTimeout(() => { $('share').textContent = 'Copy a link to this route'; }, 2200);
+    $('share').textContent = t('share.done');
+    setTimeout(() => applyLang(), 2200);
   } catch (e) {
-    toast('Copy failed. The address bar holds the link.');
+    toast(t('toast.copyfail'));
   }
 });
+
+$('print').addEventListener('click', () => {
+  if (!S.routes) { toast(t('toast.print')); return; }
+  buildPrintCard();
+  window.print();
+});
+
+/* ---------------------------------------------------------- print card */
+/* A sheet a student can carry: the streets in order, the tradeoff in one line,
+ * and the link that reopens the same trip. Text only, so it prints on anything
+ * and photocopies cleanly. */
+function buildPrintCard() {
+  const o = S.routes[S.pick];
+  const b = S.bucket;
+  const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  const vals = [0, 1, 2].map(k => exposureAt(o, k) / 100);
+  const max = Math.max(...vals, 0.01);
+  const row = (label, m, worst) =>
+    `<li><span>${esc(label)}</span><span class="m">${esc(m)}</span>`
+    + `<span class="c">${worst == null ? '' : Math.round(worst * 100)}</span></li>`;
+
+  let turns = '';
+  if (o.kind === 'transit') {
+    if (o.legA) turns += turnList(o.legA, b).map(x => row(x.label, fmtM(x.len), x.worst)).join('');
+    o.legs.forEach((leg, k) => {
+      const pat = T.patterns[leg.pi];
+      turns += row(t('turn.board', { r: pat.r, stop: stopName(pat.s[leg.posA]) }),
+                   t('turn.wait', { n: Math.round(pat.w) }), o.stopRisk);
+      turns += row(t('turn.ride', { n: leg.posB - leg.posA }),
+                   t('card.min', { n: Math.round(Math.max(0, pat.t[leg.posB] - pat.t[leg.posA]) / 60) }), null);
+      turns += row(t('turn.off', { stop: stopName(pat.s[leg.posB]) }), '', o.stopRisk);
+      if (k === 0 && o.xfer && o.xfer.metres > 0) {
+        turns += row(t('turn.xfer', { stop: stopName(o.xfer.to) }), fmtM(o.xfer.metres), o.stopRisk);
+      }
+    });
+    if (o.legB) turns += turnList(o.legB, b).map(x => row(x.label, fmtM(x.len), x.worst)).join('');
+  } else {
+    turns = turnList(o.r, b).map(x => row(x.label, fmtM(x.len), x.worst)).join('');
+  }
+
+  const mode = t(o.kind === 'transit' ? 'pc.mode.bus' : 'pc.mode.foot');
+  const date = new Date().toLocaleDateString(S.lang === 'es' ? 'es-US' : 'en-US',
+    { year: 'numeric', month: 'long', day: 'numeric' });
+
+  $('printcard').innerHTML = `
+    <div class="k">${t('pc.k')}</div>
+    <h1>${esc(S.school.name)}<small>${t('pc.from', { from: esc($('origin').value) })}</small></h1>
+    <div class="meta">${t('pc.when', { win: winName(b), clock: winClock(b), mode })}</div>
+    <table class="sum">
+      <tr><td>${t('pc.opt')}</td><td>${esc(optLabel(o))}</td></tr>
+      <tr><td>${t('pc.time')}</td><td>${t('card.min', { n: Math.max(1, Math.round(optTime(o))) })}</td></tr>
+      <tr><td>${t('pc.walk')}</td><td>${fmtM(optWalk(o))}</td></tr>
+      <tr><td>${t('pc.exp')}</td><td>${expUnits(o).toFixed(1)}</td></tr>
+    </table>
+    <div class="why">${$('because').innerHTML}</div>
+    <h2>${t('pc.turns')}</h2>
+    <ol>${turns}</ol>
+    <h2>${t('pc.hours')}</h2>
+    <div class="hours">${vals.map((v, k) =>
+      `<div><span>${cap(winName(k))}</span><span class="t"><i style="width:${(v / max * 100).toFixed(0)}%"></i></span><b>${v.toFixed(1)}</b></div>`).join('')}</div>
+    <div class="foot">
+      <div>${t('pc.open')}: <span class="url">${esc(location.href)}</span></div>
+      <div style="margin-top:4pt">${t('pc.foot')}</div>
+      <div style="margin-top:4pt">${t('pc.printed', { date })}</div>
+    </div>`;
+}
+
+/* -------------------------------------------------------- preset / embed */
+function renderPreset() {
+  const el = $('preset');
+  if (!S.preset) { el.style.display = 'none'; return; }
+  el.innerHTML = t('preset', { school: S.preset.name,
+    href: location.pathname + (S.lang !== 'en' ? `?lang=${S.lang}` : '') });
+  el.style.display = '';
+}
+
+function renderEmbed() {
+  const sc = S.rcSchool || S.preset;
+  const el = $('r-embed');
+  if (!sc) { el.style.display = 'none'; return; }
+  const url = presetUrl(sc);
+  $('embed-code').value =
+    `<iframe src="${url}&embed=1" width="100%" height="640" style="border:0" `
+    + `title="Safe Routes to School: ${sc.name.replace(/"/g, '')}" loading="lazy"></iframe>\n`
+    + `<!-- ${url} -->`;
+  el.style.display = '';
+}
+
+$('embed-copy').addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText($('embed-code').value);
+    $('embed-copy').textContent = t('emb.done');
+    setTimeout(() => applyLang(), 2200);
+  } catch (e) {
+    $('embed-code').select();
+    toast(t('toast.copyfail'));
+  }
+});
+
+$('lang').addEventListener('click', e => {
+  const d = e.target.closest('span[data-l]'); if (!d) return;
+  setLang(d.dataset.l);
+});
+
+/* ------------------------------------------------------------- offline */
+/* The service worker keeps the page and its 5 MB graph on the device, so a
+ * student with no data plan can still plan a walk after the first visit. The
+ * basemap is not cached (it is CARTO's to serve), which is why the offline
+ * note says the background will be missing. */
+function renderNet() {
+  const el = $('net');
+  if (!navigator.onLine) { el.innerHTML = t('net.off'); el.classList.add('show'); return; }
+  if (S.saved) { el.innerHTML = t('net.saved'); el.classList.add('show'); return; }
+  el.classList.remove('show');
+}
+window.addEventListener('online', renderNet);
+window.addEventListener('offline', renderNet);
+
+function registerOffline() {
+  if (!('serviceWorker' in navigator)) return;
+  if (location.protocol !== 'https:' && location.hostname !== 'localhost'
+      && location.hostname !== '127.0.0.1') return;
+  navigator.serviceWorker.register('sw.js').then(reg => {
+    if (!reg) return;
+    const ready = () => { S.saved = true; renderNet(); };
+    if (reg.active) ready();
+    else {
+      const w = reg.installing || reg.waiting;
+      if (w) w.addEventListener('statechange', () => { if (w.state === 'activated') ready(); });
+    }
+  }).catch(e => console.warn('offline copy not available', e));
+}
 
 $('demo').addEventListener('click', () => {
   const sc = S.schools.find(s => /Enriched Studies/i.test(s.name)) || S.schools[0];
@@ -1291,7 +1605,7 @@ async function boot() {
     if (bus) { bus.style.display = 'none'; }
   }
   $('boot-sub').textContent =
-    `${meta.crimes.toLocaleString()} incidents / ${meta.km.toLocaleString()} km of street`;
+    t('boot.sub', { n: meta.crimes.toLocaleString(), km: meta.km.toLocaleString() });
 
   $('lg-scale').innerHTML =
     BANDS.map(b => `<i style="background:${b.hex}"></i>`).join('');
@@ -1302,7 +1616,7 @@ async function boot() {
       `${(got / 1e6).toFixed(1)} of ${(total / 1e6).toFixed(1)} MB`;
   });
 
-  $('boot-msg').textContent = 'Building the routing graph';
+  $('boot-msg').textContent = t('boot.build');
   $('boot-bar').style.width = '100%';
   decode(buf);
   buildAdjacency();
@@ -1328,28 +1642,46 @@ async function boot() {
     S.rcSchool = it.school;
     $('rc-school').value = it.school.name;
     $('rc-run').disabled = false;
+    renderEmbed();
   });
 
   const now = windowForNow();
   const restored = readUrl();
   if (!restored) {
     setWindow(now, false);
-    const clock = new Date().toLocaleTimeString('en-US',
+    const clock = new Date().toLocaleTimeString(S.lang === 'es' ? 'es-US' : 'en-US',
       { hour: 'numeric', minute: '2-digit' });
-    $('when-note').textContent =
-      `It is ${clock}, so ${WINDOWS[now]} is selected. Change it to plan a different walk.`;
+    setDyn($('when-note'), 'when.now', { clock, win: winName(now) });
   } else {
-    $('when-note').textContent = 'Restored from a shared link.';
+    setDyn($('when-note'), 'when.restored');
   }
+  if (S.preset && !restored) {
+    map.setView([S.preset.lat, S.preset.lon], 15);
+    redrawPins();
+  }
+  applyLang();
 
   $('boot').classList.add('done');
   drawRisk();
   if (restored) { redrawPins(); compute(); }
+  registerOffline();
 }
+
+/* Language and embed mode are decided before anything loads, so the loading
+ * screen itself is already in the right language. */
+(function early() {
+  const p = new URLSearchParams(location.search);
+  let l = p.get('lang');
+  if (!l) { try { l = localStorage.getItem('srs-lang'); } catch (e) { /* ignore */ } }
+  if (!l && /^es\b/i.test(navigator.language || '')) l = 'es';
+  if (l && LANGS[l]) S.lang = l;
+  if (p.get('embed') === '1') { S.embed = true; document.body.classList.add('embed'); }
+  applyLang();
+})();
 
 boot().catch(err => {
   $('boot').classList.remove('done');
-  $('boot-msg').textContent = 'The data files did not load.';
+  $('boot-msg').textContent = t('boot.fail');
   $('boot-sub').textContent = err.message;
   console.error(err);
 });

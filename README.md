@@ -10,6 +10,27 @@ tradeoff spelled out: how much longer each one takes, how much calmer it is, and
 which street it avoids to get there. Everything runs in the browser. There is no
 server behind the page.
 
+It speaks Spanish ([safe-routes-la.github.io/?lang=es](https://safe-routes-la.github.io/?lang=es)),
+prints a one-page walking card for a student without a phone, gives every school
+its own link and an embeddable version, and keeps working with no data
+connection after the first visit.
+
+## Since the competition
+
+The entry placed third in the Young Coders' Sphere Code for Transportation
+challenge in August 2026. What has shipped since, in the order it mattered:
+
+| | Why |
+|---|---|
+| **Spanish, one tap** | Most LAUSD families speak Spanish at home. A safety tool a parent cannot read is not a safety tool. The switch covers the route explanations, the bus directions, the school report and the printed card, sticks between visits, and follows shared links. |
+| **Printable walking card** | The streets in order with each block's score, the tradeoff in one line, the same trip at the other two hours, and the link that reopens it. One sheet, black and white, for a student who does not carry a phone. |
+| **A page per school** | `?school=<id>` opens the planner with the school chosen. The School tab writes the snippet a school website can paste, and the same link works in a newsletter or a text to families. |
+| **Works offline** | A service worker keeps the page and the 5 MB scored graph on the device, and the site installs to a home screen. No data plan needed after the first load. |
+| **Report a problem** | Every route links to a pre-filled issue with the trip attached, for the student or parent who knows a block better than the data does. |
+
+Details in [`CHANGELOG.md`](CHANGELOG.md). Screenshots in
+[`docs/screenshots/`](docs/screenshots/).
+
 ## Why we built it
 
 Between 2020 and 2024, 1,838 children aged 10 to 18 were robbed on the streets
@@ -262,7 +283,11 @@ Toronto and London all publish incident data in a compatible shape.
 
 ```
 index.html  app.js        the whole front end, no build step and no framework
-data/                     what the site serves: graph.bin.gz, schools, names
+es.js                     Spanish; a third language is one more file like it
+sw.js  manifest.webmanifest   offline copy and home-screen install
+vendor/leaflet/           Leaflet 1.9.4, vendored so offline never needs a CDN
+data/                     what the site serves: graph.bin.gz, schools, names, transit
+docs/screenshots/         what the features look like
 pipeline/
   config.py               study area, crime filters, model weights
   fetch_crime.py          LAPD incidents through the Socrata API
@@ -272,6 +297,7 @@ pipeline/
   geo.py                  local planar projection
   build_graph.py          intersection splitting, risk model, binary packing
   validate.py             graph checks and the A* optimality proof
+  fetch_transit.py        LA Metro GTFS reduced to stops, ride times, headways
 ```
 
 ## What this cannot tell you
@@ -301,4 +327,6 @@ does not record.
 Crime records are published by the City of Los Angeles under the LA Open Data
 terms. The street network is OpenStreetMap, licensed ODbL. Basemap tiles are
 CARTO. Address lookup uses Nominatim. School locations come from the California
-Department of Education.
+Department of Education. Transit stops and schedules are LA Metro's GTFS feeds.
+The map library is [Leaflet](https://leafletjs.com), BSD-2, vendored under
+`vendor/leaflet/`.
