@@ -286,7 +286,7 @@ function routeLatLngs(r) {
 function byStreet(edgeIds, bucket) {
   const acc = new Map();
   for (const ei of edgeIds) {
-    const nm = streetName(ei) || ' unnamed';
+    const nm = streetName(ei) || ' unnamed';
     let a = acc.get(nm);
     if (!a) acc.set(nm, a = { name: nm, len: 0, worst: 0, weighted: 0 });
     const r = risk(ei, bucket);
@@ -298,7 +298,7 @@ function byStreet(edgeIds, bucket) {
 }
 
 const streetLabel = s =>
-  s.name === ' unnamed' ? 'an unnamed path' : s.name;
+  s.name === ' unnamed' ? 'an unnamed path' : s.name;
 
 function explain(sel, base, bucket) {
   if (sel.edges.length === base.edges.length
@@ -324,7 +324,7 @@ function explain(sel, base, bucket) {
       + `<b>${Math.round(a.worst * 100)}</b> at this hour.`);
   }
   if (taken.length) {
-    const t = taken.find(x => x.name !== ' unnamed') || taken[0];
+    const t = taken.find(x => x.name !== ' unnamed') || taken[0];
     parts.push(`Goes along <span class="st">${streetLabel(t)}</span> instead, `
       + `at <b>${Math.round(t.worst * 100)}</b>.`);
   }
