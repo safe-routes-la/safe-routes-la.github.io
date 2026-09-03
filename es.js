@@ -190,6 +190,7 @@ window.LANGS.es = {
     'why.t.drops': 'Frente a caminar todo el camino, la exposición baja <b>{cut}%</b>.',
     'why.t.flat': 'Es casi la misma exposición que caminarlo, así que toma la que te convenga.',
 
+    'hours.now': '\u00B7 ahora',
     'hours.note': 'Este mismo viaje tiene más exposición en la {win} ({clock}). Cambiar la ventana arriba repite la búsqueda, que muchas veces devuelve una ruta distinta.',
 
     'turn.board': 'Sube a {r} en {stop}',
@@ -214,7 +215,7 @@ window.LANGS.es = {
     'emb.done': 'Código copiado',
 
     'net.saved': '<b>Guardado en este dispositivo.</b> Funciona sin conexión.',
-    'net.off': '<b>Sin conexión.</b> Las rutas siguen funcionando; el fondo del mapa no cargará.',
+    'net.off': '<b>Sin conexión.</b> Las rutas siguen funcionando; el mapa muestra las calles sin nombres.',
 
     'boot.build': 'Construyendo el grafo de rutas',
     'boot.sub': '{n} incidentes / {km} km de calles',

@@ -107,6 +107,7 @@ const EN = {
   'why.t.drops': 'Against walking the whole way, exposure drops <b>{cut}%</b>.',
   'why.t.flat': 'That is about the same exposure as walking it, so take whichever suits you.',
 
+  'hours.now': '\u00B7 now',
   'hours.note': 'This same trip carries the most exposure in the {win} ({clock}). Changing '
     + 'the window above re-runs the search, which often returns a different route entirely.',
 
@@ -135,7 +136,7 @@ const EN = {
   'emb.done': 'Code copied',
 
   'net.saved': '<b>Saved on this device.</b> Works without a connection.',
-  'net.off': '<b>Offline.</b> Routes still work; the map background will not load.',
+  'net.off': '<b>Offline.</b> Routes still work; the map shows streets without labels.',
 
   'boot.build': 'Building the routing graph',
   'boot.sub': '{n} incidents / {km} km of street',
@@ -349,7 +350,67 @@ function buildIndex() {
     a.push(i);
   }
   S.cellIdx = idx; S.CELL = CELL;
+
+  // Edges by cell too, keyed on both endpoints, so a map tile can ask for the
+  // blocks that touch it without scanning all 431,599.
+  const eidx = new Map();
+  const put = (k, i) => { let a = eidx.get(k); if (!a) eidx.set(k, a = []); a.push(i); };
+  for (let i = 0; i < S.nEdges; i++) {
+    const ku = cellKey(S.nLat[S.eu[i]], S.nLon[S.eu[i]]);
+    const kv = cellKey(S.nLat[S.ev[i]], S.nLon[S.ev[i]]);
+    put(ku, i); if (kv !== ku) put(kv, i);
+  }
+  S.edgeCells = eidx;
 }
+const cellKey = (lat, lon) =>
+  ((Math.floor(lat / 0.004) & 0xffff) << 16) | (Math.floor(lon / 0.004) & 0xffff);
+
+/* -------------------------------------------------------- street layer */
+/* The graph already holds every walkable block in the study area, so the map
+ * can draw its own basemap from it. It sits underneath the CARTO tiles: when
+ * they load they cover it, and when they cannot, offline or on a school
+ * network that blocks the tile host, the streets are still there under the
+ * route. No labels, which is what the tiles are for. */
+const StreetTiles = L.GridLayer.extend({
+  createTile(coords) {
+    const tile = document.createElement('canvas');
+    const size = this.getTileSize();
+    tile.width = size.x; tile.height = size.y;
+    if (!S.edgeCells) return tile;
+    const z = coords.z;
+    const origin = coords.scaleBy(size);
+    const nw = this._map.unproject(origin, z);
+    const se = this._map.unproject(origin.add(size), z);
+    const pad = 2 * S.CELL;                       // catch blocks that only cross the tile
+    const s0 = se.lat - pad, n0 = nw.lat + pad, w0 = nw.lng - pad, e0 = se.lng + pad;
+
+    const ctx = tile.getContext('2d');
+    ctx.strokeStyle = z >= 16 ? '#cfc9b6' : '#d6d0bf';
+    ctx.lineWidth = z >= 17 ? 3.2 : z >= 16 ? 2.3 : z >= 15 ? 1.5 : z >= 14 ? 1 : 0.7;
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.beginPath();
+    const seen = new Set();
+    const proj = (lat, lon) => this._map.project([lat, lon], z).subtract(origin);
+    for (let la = Math.floor(s0 / S.CELL); la <= Math.floor(n0 / S.CELL); la++) {
+      for (let lo = Math.floor(w0 / S.CELL); lo <= Math.floor(e0 / S.CELL); lo++) {
+        const cell = S.edgeCells.get(((la & 0xffff) << 16) | (lo & 0xffff));
+        if (!cell) continue;
+        for (const i of cell) {
+          if (seen.has(i)) continue;
+          seen.add(i);
+          const u = S.eu[i];
+          let p = proj(S.nLat[u], S.nLon[u]);
+          ctx.moveTo(p.x, p.y);
+          for (const q of edgeShape(i, u)) { p = proj(q[0], q[1]); ctx.lineTo(p.x, p.y); }
+          p = proj(S.nLat[S.ev[i]], S.nLon[S.ev[i]]);
+          ctx.lineTo(p.x, p.y);
+        }
+      }
+    }
+    ctx.stroke();
+    return tile;
+  },
+});
 
 function nearestNode(lat, lon) {
   const ci = Math.floor(lat / S.CELL), cj = Math.floor(lon / S.CELL);
@@ -1118,7 +1179,7 @@ function renderHours(o) {
   const max = Math.max(...vals, 0.01);
   $('hours').innerHTML = vals.map((v, b) => `
     <div class="hrow${b === S.bucket ? ' now' : ''}">
-      <span>${cap(winName(b))}</span>
+      <span>${cap(winName(b))}${b === S.bucket ? `<span class="nowtag"> ${t('hours.now')}</span>` : ''}</span>
       <span class="track"><i class="bar" style="width:${(v / max * 100).toFixed(1)}%;background:${bandColor(optWalk(o) ? exposureAt(o, b) / optWalk(o) : 0)}"></i></span>
       <b>${v.toFixed(1)}</b>
     </div>`).join('');
@@ -1827,6 +1888,7 @@ async function boot() {
   decode(buf);
   buildAdjacency();
   buildIndex();
+  new StreetTiles({ zIndex: 0, minZoom: 12, updateWhenIdle: true }).addTo(map);
 
   attachAC('school', 'ac-school', q => searchSchools(q), it => {
     S.school = it.school;

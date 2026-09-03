@@ -89,17 +89,18 @@ can embed.
 
 ## Files to upload (up to 10, 10 MB each)
 
-Take these on the live site with the map behind them. The copies in
-`docs/screenshots/` were captured with basemap tiles blocked and look bare.
+Ready in `docs/screenshots/`, numbered in upload order. They were captured
+from the site with the map's own street layer (no tile labels); if you prefer
+the labelled CARTO background, retake them on the live site.
 
-1. The Spanish route view, worked example.
-2. Cross streets typed as "Pico / La Brea" resolving on the device.
-3. Bus or rail options for a long trip.
-4. The school report for LACES.
-5. The printed walking card (print to PDF from the site).
-6. The phone layout.
-7. The embedded, school-preset version.
-8. The site loaded with no connection.
+1. `01-spanish-route.png`: the worked example in Spanish, three options and the reasoning.
+2. `02-cross-streets.png`: "Pico / La Brea" resolving on the device.
+3. `03-bus-or-rail.png`: bus options with the walk for comparison.
+4. `04-school-report.png`: sixteen approaches to LACES, ranked.
+5. `05-walking-card.png`: the printed walking card.
+6. `06-phone.png`: the phone layout, Spanish.
+7. `07-school-embed.png`: the school-preset page a school website embeds.
+8. `08-offline.png`: the site running with no connection.
 9. The Code for Transportation results email or the certificate.
 10. The competition video, or a link to it in the comments box.
 

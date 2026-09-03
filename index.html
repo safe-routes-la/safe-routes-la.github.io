@@ -204,12 +204,12 @@
   /* departure comparison: flat bars, no gradient */
   .hours{display:flex; flex-direction:column; gap:7px}
   .hrow{display:grid; grid-template-columns:74px 1fr 34px; gap:9px; align-items:center}
-  .hrow span{font-size:11.5px; color:var(--dim)}
+  .hrow > span:first-child{font-size:11.5px; color:var(--dim); white-space:nowrap}
   .hrow .track{height:12px; background:var(--card-2); position:relative}
-  .hrow .bar{height:12px}
+  .hrow .bar{display:block; height:12px}
   .hrow b{font-family:var(--mono); font-size:12px; font-weight:600; text-align:right}
-  .hrow.now span{color:var(--ink); font-weight:600}
-  .hrow.now span::after{content:' \00B7 now'; color:var(--faint); font-weight:400}
+  .hrow.now > span:first-child{color:var(--ink); font-weight:600}
+  .hrow .nowtag{color:var(--faint); font-weight:400}
 
   /* turn list */
   details.turns summary{

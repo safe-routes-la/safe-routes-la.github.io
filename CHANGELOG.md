@@ -22,6 +22,10 @@ third. Everything below shipped afterwards.
   the 5 MB scored graph on the device after the first visit, and the site
   installs to a home screen (`manifest.webmanifest`). A student with no data
   plan can still plan a walk; only the basemap tiles are missing offline.
+- **The map draws its own streets.** The graph holds every walkable block, so
+  a canvas layer under the tiles renders them. When the tile host is
+  unreachable, offline or on a school network that blocks it, the route still
+  sits on a street map instead of a blank page.
 - **Cross streets, on the device.** "Hauser & Venice", "Pico / La Brea",
   "wilshire at western" resolve from the street graph itself: an intersection
   is a node shared by a block of each name. Instant, exact to the graph the

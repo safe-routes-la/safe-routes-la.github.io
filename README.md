@@ -26,6 +26,7 @@ challenge in August 2026. What has shipped since, in the order it mattered:
 | **Printable walking card** | The streets in order with each block's score, the tradeoff in one line, the same trip at the other two hours, and the link that reopens it. One sheet, black and white, for a student who does not carry a phone. |
 | **Cross streets, offline** | "Hauser & Venice" is how people here say where they are, and it is the one input geocoders handle badly. An intersection is a node shared by a block of each name, so it is resolved on the device from the street graph itself. A "use my location" button covers the other common case. |
 | **A page per school** | `?school=<id>` opens the planner with the school chosen. The School tab writes the snippet a school website can paste, and the same link works in a newsletter or a text to families. |
+| **The map draws its own streets** | The graph holds every walkable block, so a canvas layer under the tiles renders them. When the tile host is unreachable, the route still sits on a street map. |
 | **Works offline** | A service worker keeps the page and the 5 MB scored graph on the device, and the site installs to a home screen. No data plan needed after the first load. |
 | **Report a problem** | Every route links to a pre-filled issue with the trip attached, for the student or parent who knows a block better than the data does. |
 
