@@ -195,6 +195,12 @@ function applyLang() {
     const k = el.dataset.tp;
     el.placeholder = (S.lang !== 'en' && pack.s[k]) ? pack.s[k] : el.dataset.enp;
   }
+  for (const el of document.querySelectorAll('[data-tt]')) {
+    if (el.dataset.ent == null) el.dataset.ent = el.title;
+    const k = el.dataset.tt;
+    const v = (S.lang !== 'en' && pack.s[k]) ? pack.s[k] : el.dataset.ent;
+    el.title = v; el.setAttribute('aria-label', v);
+  }
   for (const el of document.querySelectorAll('[data-dyn]')) {
     el.innerHTML = t(el.dataset.dyn, el.dataset.dynVars ? JSON.parse(el.dataset.dynVars) : null);
   }
@@ -1028,6 +1034,9 @@ function compute(fit = true) {
   // On a phone the results sit below the fold of the sidebar; bring them up
   // when a trip is first planned, not on every window or mode change.
   if (fit) {
+    // On a phone the sheet is only peeking, so scrolling inside it would move
+    // content the visitor cannot see yet. Raise it first.
+    window.srsSheet?.atLeast('half');
     const panes = document.querySelector('.panes');
     // When the trip is the example we planned on the visitor's behalf, the
     // line saying so sits just above the cards: land on that instead, or the
@@ -1066,11 +1075,12 @@ function clearTrip() {
 $('clear').addEventListener('click', clearTrip);
 
 /* ----------------------------------------------------------- geolocation */
-$('locate').addEventListener('click', () => {
+$('locate').addEventListener('click', e => {
+  e.preventDefault();
   if (!navigator.geolocation) { toast(t('toast.nogeo')); return; }
   const btn = $('locate');
-  btn.disabled = true; btn.textContent = t('geo.wait');
-  const done = () => { btn.disabled = false; applyLang(); };
+  btn.disabled = true; btn.classList.add('busy'); btn.title = t('geo.wait');
+  const done = () => { btn.disabled = false; btn.classList.remove('busy'); applyLang(); };
   navigator.geolocation.getCurrentPosition(pos => {
     done();
     const lat = pos.coords.latitude, lon = pos.coords.longitude;
@@ -1780,6 +1790,7 @@ document.querySelector('.tabs').addEventListener('click', e => {
   document.querySelectorAll('.pane').forEach(x => x.classList.remove('on'));
   t.classList.add('on');
   $('p-' + t.dataset.p).classList.add('on');
+  document.body.dataset.tab = t.dataset.p;
   if (t.dataset.p !== 'school') spokeLayer.clearLayers();
 });
 
@@ -2156,3 +2167,78 @@ boot().catch(err => {
   $('boot-sub').textContent = err.message;
   console.error(err);
 });
+
+/* ------------------------------------------------------------ bottom sheet */
+/* Under 900px the panel is a sheet over a full-screen map rather than half a
+ * split screen, so the map is actually usable on a phone. Three stops: a peek
+ * that shows the trip fields, half, and full. Dragging the grip moves it and
+ * releases to the nearest stop; the sheet also rises on its own when there is
+ * something new to read, because a result nobody scrolls to is a result
+ * nobody sees. */
+(function sheet() {
+  const side = $('side'), grip = $('grip');
+  if (!side || !grip) return;
+  const phone = window.matchMedia('(max-width:900px)');
+  const STOPS = ['peek', 'half', 'full'];
+  let at = 'peek', drag = null;
+
+  const peekPx = () => parseInt(
+    getComputedStyle(document.documentElement).getPropertyValue('--sheet-peek'), 10) || 250;
+  const heights = () => ({
+    peek: peekPx(), half: window.innerHeight * 0.56, full: window.innerHeight * 0.88,
+  });
+
+  const setState = s => {
+    at = s;
+    side.classList.remove('half', 'full');
+    if (s !== 'peek') side.classList.add(s);
+    side.style.height = '';                 // hand the height back to the stylesheet
+    grip.setAttribute('aria-label', s === 'full' ? 'Collapse panel' : 'Expand panel');
+  };
+  // Raise the sheet, never lower it: a visitor who pulled it up meant to.
+  const atLeast = s => {
+    if (!phone.matches) return;
+    if (STOPS.indexOf(s) > STOPS.indexOf(at)) setState(s);
+  };
+  window.srsSheet = { atLeast, setState, isPhone: () => phone.matches };
+
+  grip.addEventListener('pointerdown', e => {
+    if (!phone.matches) return;
+    drag = { y: e.clientY, h: side.getBoundingClientRect().height, moved: false };
+    side.classList.add('dragging');
+    // Synthetic and already-released pointers have no capture to take.
+    try { grip.setPointerCapture(e.pointerId); } catch { /* not capturable */ }
+  });
+  grip.addEventListener('pointermove', e => {
+    if (!drag) return;
+    const dy = drag.y - e.clientY;          // drag up grows the sheet
+    if (Math.abs(dy) > 3) drag.moved = true;
+    const max = window.innerHeight * 0.88;
+    side.style.height = Math.min(max, Math.max(peekPx(), drag.h + dy)) + 'px';
+  });
+  const end = e => {
+    if (!drag) return;
+    side.classList.remove('dragging');
+    if (!drag.moved) {                      // a tap cycles instead of dragging
+      setState(at === 'full' ? 'peek' : STOPS[STOPS.indexOf(at) + 1] || 'full');
+    } else {
+      const h = side.getBoundingClientRect().height, hs = heights();
+      let best = 'peek', d = Infinity;
+      for (const k of STOPS) { const dd = Math.abs(hs[k] - h); if (dd < d) { d = dd; best = k; } }
+      setState(best);
+    }
+    drag = null;
+    try {
+      if (e.pointerId != null && grip.hasPointerCapture?.(e.pointerId)) grip.releasePointerCapture(e.pointerId);
+    } catch { /* already released */ }
+  };
+  grip.addEventListener('pointerup', end);
+  grip.addEventListener('pointercancel', end);
+
+  // Typing needs room for the field, its suggestions and the keyboard.
+  for (const id of ['origin', 'school']) {
+    $(id).addEventListener('focus', () => atLeast('full'));
+  }
+  phone.addEventListener?.('change', () => setState('peek'));
+  setState('peek');
+})();
