@@ -1,12 +1,12 @@
 {
-  "name": "Safe Routes to School / Los Angeles",
-  "short_name": "Safe Routes",
+  "name": "WalkHome LA",
+  "short_name": "WalkHome",
   "description": "Walking and transit directions for Los Angeles students that route around the blocks where students actually get robbed.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#e8e4d6",
-  "theme_color": "#e8e4d6",
+  "background_color": "#071118",
+  "theme_color": "#071118",
   "lang": "en",
   "categories": ["navigation", "education", "utilities"],
   "icons": [

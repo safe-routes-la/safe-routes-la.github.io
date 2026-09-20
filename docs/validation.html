@@ -1,4 +1,4 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Model Validation</title><meta name="description" content="Out-of-sample validation of the Safe Routes to School risk model."><style>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Model Validation</title><meta name="description" content="Out-of-sample validation of the WalkHome LA risk model."><style>
 :root{
   --bg:#f7f7f5; --panel:#fff; --ink:#1a1a18; --muted:#6b6b66; --line:#e2e2dd;
   --good:#3c7a4e; --warn:#c8912b; --bad:#a52714; --accent:#2d5f8a;
@@ -78,7 +78,7 @@ a{color:var(--accent)}
   th,td{padding:7px 6px;font-size:13px}
   .hide-sm{display:none}
 }
-</style></head><body><div class="wrap"><header><h1>Does the risk model predict anything?</h1><p class="sub">Out-of-sample validation for <a href="../">Safe Routes to School</a>. The router is provably correct; that is a different question from whether the thing it routes over is.</p></header>
+</style></head><body><div class="wrap"><header><h1>Does the risk model predict anything?</h1><p class="sub">Out-of-sample validation for <a href="../">WalkHome LA</a>. The router is provably correct; that is a different question from whether the thing it routes over is.</p></header>
 <div class="card verdict"><h3>Not yet validated against Los Angeles.</h3><p>The holdout is written, tested and ready, and has never been run on real incidents: the cache is not in the repository and the source API was unreachable from where this was built. No claim about this model&rsquo;s predictive skill is currently supported. Everything below tests the <em>evaluation</em>, on synthetic fixtures with known answers.</p></div>
 <pre><code>python pipeline/fetch_crime.py
 python pipeline/eval/holdout.py</code></pre>

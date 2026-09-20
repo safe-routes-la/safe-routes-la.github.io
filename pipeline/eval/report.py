@@ -166,7 +166,7 @@ def build(args):
     parts = []
     parts.append('<header><h1>Does the risk model predict anything?</h1>'
                  '<p class="sub">Out-of-sample validation for '
-                 '<a href="../">Safe Routes to School</a>. '
+                 '<a href="../">WalkHome LA</a>. '
                  'The router is provably correct; that is a different question '
                  'from whether the thing it routes over is.</p></header>')
 
@@ -245,7 +245,7 @@ def build(args):
             f'initial-scale=1">'
             f'<title>Model Validation</title>'
             f'<meta name="description" content="Out-of-sample validation of the '
-            f'Safe Routes to School risk model.">'
+            f'WalkHome LA risk model.">'
             f'<style>{CSS}</style></head><body><div class="wrap">'
             + "\n".join(parts) + '</div></body></html>')
     return page

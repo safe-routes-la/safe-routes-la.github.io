@@ -1,4 +1,4 @@
-/* Safe Routes to School / Los Angeles
+/* WalkHome LA
  *
  * Everything runs in the browser. The pipeline ships a packed binary graph
  * where each block already carries a risk score per time-of-day window, and
@@ -142,7 +142,7 @@ const EN = {
   'boot.sub': '{n} incidents / {km} km of street',
   'boot.fail': 'The data files did not load.',
 
-  'pc.k': 'Walking card / Safe Routes to School',
+  'pc.k': 'Walking card / WalkHome LA',
   'pc.to': 'to {school}',
   'pc.from': 'From {from}',
   'pc.when': 'For the {win} ({clock}), {mode}.',
@@ -1986,7 +1986,7 @@ function renderEmbed() {
   const url = presetUrl(sc);
   $('embed-code').value =
     `<iframe src="${url}&embed=1" width="100%" height="640" style="border:0" `
-    + `title="Safe Routes to School: ${sc.name.replace(/"/g, '')}" loading="lazy"></iframe>\n`
+    + `title="WalkHome LA: ${sc.name.replace(/"/g, '')}" loading="lazy"></iframe>\n`
     + `<!-- ${url} -->`;
   el.style.display = '';
 }
@@ -2321,6 +2321,9 @@ boot().catch(err => {
  * on screen are dropped rather than pointing at nothing, which is what would
  * happen in embed mode or before a route exists. */
 (function tour() {
+  // Deliberately still the old key: the rename is cosmetic to a visitor, and
+  // re-prompting everyone who already dismissed the tour would be a worse
+  // greeting than a stale-looking string in localStorage.
   const KEY = 'srs-tour-v1';
   const el = $('tour'), spot = $('tour-spot'), pop = $('tour-pop');
   const hEl = $('tour-h'), bEl = $('tour-b'), dots = $('tour-dots');
@@ -2439,3 +2442,14 @@ boot().catch(err => {
 })();
 
 $('help').addEventListener('click', () => window.srsTourOpen?.());
+
+/* ------------------------------------------------------------------ brand */
+/* The mark draws itself once the page is up. The boot copy keeps redrawing
+ * while the graph downloads, so the wait carries the idea instead of a spinner
+ * that says nothing. */
+(function brand() {
+  const boot = document.querySelector('#boot .mark');
+  if (boot) boot.classList.add('loop');
+  const head = document.querySelector('.masthead .mark');
+  if (head) requestAnimationFrame(() => head.classList.add('go'));
+})();

@@ -1,4 +1,4 @@
-# Safe Routes to School
+# WalkHome LA
 
 Walking directions for Los Angeles students, built from where students actually
 get robbed rather than from distance alone.
