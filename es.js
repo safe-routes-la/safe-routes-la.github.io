@@ -57,8 +57,6 @@ window.LANGS.es = {
 
     'open.h': 'Ábrela en otra aplicación',
     'open.g': 'Google Maps',
-    'open.a': 'Apple Maps — ruta directa',
-    'open.w': 'Waze — en coche',
     'open.gpx': 'Descargar GPX',
 
     'layers.h': 'Capas del mapa',
@@ -239,16 +237,50 @@ window.LANGS.es = {
     'pc.printed': 'Impreso el {date}',
 
     'open.note': 'A Google se le envían algunos puntos de paso para que su '
-      + 'navegador siga esta ruta y no la más corta. Apple y Waze solo aceptan '
-      + 'un inicio y un final, así que elegirán su propio camino. El archivo '
-      + 'GPX es el único que lleva esta ruta exactamente como es.',
+      + 'navegador siga esta ruta y no la más corta. El archivo GPX la lleva '
+      + 'exactamente como es, y es la mejor opción en un iPhone: Organic Maps, '
+      + 'OsmAnd y Komoot la dibujan tal cual. Apple Maps y Waze ya no aparecen '
+      + 'porque ninguno acepta puntos de paso, así que ambos te mandarían en '
+      + 'silencio por el camino corto.',
     'open.ready': 'Se enviaron <b>{k} puntos de paso</b> a Google, que debería '
-      + 'conservar cerca del <b>{f}%</b> de esta ruta. Apple y Waze siguen '
-      + 'eligiendo la suya.',
+      + 'conservar cerca del <b>{f}%</b> de esta ruta.',
     'open.working': 'Calculando los puntos de paso…',
     'intro.example': 'Esta es una caminata de ejemplo a <b>{school}</b>, evaluada '
       + 'para la hora que es ahora, para que veas qué hace la aplicación antes de '
       + 'escribir nada. Pon tu escuela y tu punto de partida para reemplazarla.',
     'toast.gpx': 'GPX guardado. Ábrelo en Organic Maps, OsmAnd o Komoot.',
+
+    'tour.close': 'Cerrar',
+    'tour.help': 'Muéstrame cómo',
+    'tour.skip': 'Ahora no',
+    'tour.back': 'Atrás',
+    'tour.next': 'Siguiente',
+    'tour.done': 'Entendido',
+    'tour.start': 'Muéstrame cómo',
+    'tour.0h': 'Indicaciones que toman en cuenta dónde lastiman a los estudiantes',
+    'tour.0b': 'Casi todas las aplicaciones de mapas responden una sola pregunta: '
+      + 'cuál es el camino más corto. Esta evalúa cada cuadra de Los Ángeles con '
+      + '<b>85,634 registros reales de delitos</b> y rodea las peores. '
+      + '¿Quieres ver cómo se lee?',
+    'tour.1h': 'Por dónde vas a caminar',
+    'tour.1b': 'Pon de dónde sales y a qué escuela vas. Dos calles que se cruzan, '
+      + 'como <b>Hauser &amp; Venice</b>, funcionan sin conexión, y también puedes '
+      + 'hacer clic en el mapa para marcar un punto.',
+    'tour.2h': 'La hora cambia la respuesta',
+    'tour.2b': 'La misma calle no es igual de riesgosa a las 7 de la mañana que a '
+      + 'las 9 de la noche, así que las puntuaciones cambian con la hora. Empieza '
+      + 'en <b>la hora que es ahora</b>.',
+    'tour.3h': 'Tres formas de caminarla',
+    'tour.3b': '<b>La más corta</b> es la que te daría una aplicación común. '
+      + '<b>La más segura</b> evita las peores cuadras. Cada tarjeta muestra los '
+      + 'minutos y la exposición, para que veas qué te da el rodeo.',
+    'tour.4h': 'Por qué esta ruta',
+    'tour.4b': 'Te dice qué calle evitó, cuánto puntúa esa calle a esta hora y '
+      + 'cuántos minutos te cuesta el rodeo. Si la razón no te convence, elige '
+      + 'otra tarjeta.',
+    'tour.5h': 'Llevártela contigo',
+    'tour.5b': 'A Google Maps se le envían puntos de paso para que siga esta ruta y '
+      + 'no la más corta. El <b>GPX</b> la lleva exactamente, y hay una tarjeta '
+      + 'imprimible para un estudiante sin teléfono.',
   },
 };

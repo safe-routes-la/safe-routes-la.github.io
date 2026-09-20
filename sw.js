@@ -8,7 +8,7 @@
  *
  * Bump VERSION whenever anything in data/ changes; the old cache is dropped on
  * the next activation. */
-const VERSION = 'srs-2026-09-20';
+const VERSION = 'srs-2026-09-20b';
 
 const SHELL = [
   './', 'index.html', 'app.js', 'es.js', 'manifest.webmanifest',
@@ -20,7 +20,7 @@ const DATA = [
   'data/graph_meta.json', 'data/schools.json', 'data/street_names.json',
   'data/transit.json', 'data/graph.bin.gz',
 ];
-const NEVER = /cartocdn\.com|nominatim\.openstreetmap\.org|fonts\.g|github\.com/;
+const NEVER = /arcgisonline\.com|openstreetmap\.org|fonts\.g|github\.com/;
 
 self.addEventListener('install', e => {
   e.waitUntil((async () => {
