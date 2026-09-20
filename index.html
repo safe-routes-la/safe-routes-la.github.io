@@ -25,16 +25,19 @@
     --rule:rgba(223,231,234,.13); --rule-2:rgba(223,231,234,.27);
 
     /* The route line. Cool on purpose: nothing on the risk scale is cool, so
-       the chosen route can never be mistaken for a risk value. */
-    --accent:#2ee6d0;
-    --accent-dim:rgba(46,230,208,.13);
-    --accent-line:rgba(46,230,208,.34);
+       the chosen route can never be mistaken for a risk value. Its hue sits
+       160 degrees off every step of the ramp below. */
+    --accent:#35c8ff;
+    --accent-dim:rgba(53,200,255,.13);
+    --accent-line:rgba(53,200,255,.34);
 
     /* Risk scale. One hue, stepped lightness -- risk is a magnitude, not a set
-       of categories, and a green-amber-red ramp invents boundaries the data
-       does not have. Validated for monotone lightness, step separation and
-       contrast against --paper rather than picked by eye. */
-    --r-1:#8a2d2b; --r-2:#b53a38; --r-3:#d9524f; --r-4:#ec7f7b; --r-5:#f9b0ac;
+       of categories, and a category ramp invents boundaries the data does not
+       have. Warm, because heat is how people already read a magnitude. Checked
+       rather than eyeballed: L* 31.9 -> 86.1, rising every step, smallest step
+       10.4, and the calmest band still clears the ground at 2.18:1 so a quiet
+       block recedes without disappearing. */
+    --r-1:#7d3612; --r-2:#a34a12; --r-3:#d87321; --r-4:#f0a03c; --r-5:#ffd08a;
     --r-low:var(--r-1); --r-mid:var(--r-3); --r-high:var(--r-5);
 
     --disp:'Fraunces',Georgia,serif;
@@ -59,6 +62,9 @@
     font-size:14px; line-height:1.5;
   }
   :focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+  /* On a filled accent button the accent ring disappears into the fill. */
+  button.act:focus-visible, button.tbtn:not(.quiet):focus-visible,
+  .tab.on:focus-visible{outline-color:var(--ink)}
 
   /* The map is the page. Everything else floats over it, the way every
      mapping app people already know is built. */
@@ -373,8 +379,8 @@
   table.approach td.dir{color:var(--ink); font-weight:600}
   table.approach td.sc{font-family:var(--mono); font-weight:600}
   /* Tint from the risk ramp and the route colour, not the retired green. */
-  table.approach tr.worst td{background:rgba(217,82,79,.12)}
-  table.approach tr.best  td{background:rgba(46,230,208,.09)}
+  table.approach tr.worst td{background:rgba(216,115,33,.14)}
+  table.approach tr.best  td{background:rgba(53,200,255,.10)}
   table.approach td .swatch{
     display:inline-block; width:9px; height:9px; border-radius:2px;
     margin-right:6px; vertical-align:-1px;
@@ -402,7 +408,7 @@
   table.data td{padding:7px 6px 7px 0; border-bottom:1px solid var(--rule); color:var(--dim)}
   table.data tr:last-child td{border-bottom:none}
   table.data td:last-child{font-family:var(--mono); font-weight:600; color:var(--ink)}
-  table.data tr.mark td{background:rgba(236,127,123,.12)}
+  table.data tr.mark td{background:rgba(240,160,60,.13)}
 
   ul.plain{list-style:none}
   ul.plain li{
@@ -427,9 +433,13 @@
   #mapwrap{position:absolute; inset:0; z-index:1; background:var(--paper-2)}
   #map{position:absolute; inset:0}
   .leaflet-container{background:var(--paper-2); font-family:var(--sans)}
-  /* The tiles are CARTO's dark variants now. The old rule warmed them with
-     sepia to sit on a cream page, which on this ground just muddied them. */
-  .leaflet-tile-pane{filter:saturate(.85) brightness(.92)}
+  /* Esri's Dark Gray Canvas arrives dark, so it only needs settling down.
+     The OpenStreetMap fallback arrives light, so it gets inverted instead --
+     hue-rotate puts the hues back the right way round after the invert. */
+  .leaflet-tile-pane{filter:saturate(.9) brightness(.95)}
+  body.basemap-osm .leaflet-tile-pane{
+    filter:invert(1) hue-rotate(180deg) brightness(.82) contrast(.92) saturate(.55);
+  }
   .leaflet-control-attribution{
     background:rgba(7,17,24,.82)!important; color:var(--faint)!important;
     font-size:10px!important; border-radius:var(--r-sm) 0 0 0;
@@ -492,8 +502,19 @@
   .toast.show{display:block}
 
   /* --------------------------------------------------------- language */
+  .mast-tools{
+    position:absolute; top:13px; right:14px;
+    display:flex; align-items:center; gap:6px;
+  }
+  #help{
+    width:24px; height:24px; border-radius:50%; cursor:pointer;
+    background:var(--field); border:1px solid var(--rule);
+    color:var(--dim); font-family:inherit; font-size:12.5px; font-weight:600;
+    display:grid; place-items:center; padding:0; line-height:1;
+  }
+  #help:hover{color:var(--accent); border-color:var(--accent-line)}
   #lang{
-    position:absolute; top:13px; right:14px; display:flex; gap:2px;
+    display:flex; gap:2px;
     background:var(--field); border:1px solid var(--rule); border-radius:var(--pill);
     padding:2px; font-size:10.5px; font-weight:600; letter-spacing:.06em;
   }
@@ -587,12 +608,52 @@
     #side{transition:none}
   }
 
+  /* ----------------------------------------------------------- walkthrough */
+  /* Offered once, on the first visit. The scrim is the spotlight's own
+     box-shadow, so there is one moving element rather than four mask strips;
+     the welcome step just hides its border and keeps the shadow. */
+  #tour{position:fixed; inset:0; z-index:1000; display:none}
+  #tour.on{display:block}
+  #tour-spot{
+    position:absolute; border-radius:var(--r-md); border:2px solid var(--accent);
+    box-shadow:0 0 0 9999px rgba(3,10,16,.76); pointer-events:none;
+    transition:top .25s ease, left .25s ease, width .25s ease, height .25s ease;
+  }
+  #tour.nospot #tour-spot{border-color:transparent}
+  #tour-pop{
+    position:absolute; width:min(340px, calc(100vw - 32px));
+    background:var(--paper); border:1px solid var(--rule-2);
+    border-radius:var(--r-lg); box-shadow:var(--sh-3); padding:16px 17px 14px;
+  }
+  #tour-pop h3{font-size:15.5px; font-weight:600; margin-bottom:6px; padding-right:26px; letter-spacing:-.01em}
+  #tour-pop p{font-size:13px; color:var(--dim); line-height:1.58}
+  #tour-pop p b{color:var(--ink); font-weight:600}
+  #tour-x{
+    position:absolute; top:9px; right:9px; width:28px; height:28px;
+    display:grid; place-items:center; border:none; background:none; cursor:pointer;
+    color:var(--faint); border-radius:50%; font-size:17px; line-height:1;
+  }
+  #tour-x:hover{background:var(--card-2); color:var(--ink)}
+  #tour-foot{display:flex; align-items:center; gap:8px; margin-top:15px}
+  #tour-dots{display:flex; gap:5px; margin-right:auto}
+  #tour-dots i{width:6px; height:6px; border-radius:50%; background:var(--rule-2)}
+  #tour-dots i.on{background:var(--accent)}
+  button.tbtn{
+    padding:8px 14px; border-radius:var(--pill); cursor:pointer;
+    font-family:inherit; font-size:13px; font-weight:600; white-space:nowrap;
+    background:var(--accent); color:var(--paper); border:none;
+  }
+  button.tbtn:hover{filter:brightness(1.08)}
+  button.tbtn.quiet{background:transparent; color:var(--dim); border:1px solid var(--rule-2); font-weight:500}
+  button.tbtn.quiet:hover{color:var(--ink); background:var(--card-2)}
+  @media (prefers-reduced-motion:reduce){#tour-spot{transition:none}}
+
   /* ------------------------------------------------------------ print card */
   #printcard{display:none}
   @media print{
     @page{margin:14mm}
     html,body{height:auto; overflow:visible; background:#fff; color:#000}
-    #app{display:none!important}
+    #app,#tour{display:none!important}
     #printcard{display:block; font-family:Georgia,'Times New Roman',serif; color:#000; max-width:170mm}
     #printcard .k{font-family:'Courier New',monospace; font-size:9pt; letter-spacing:.12em; text-transform:uppercase; color:#555; margin-bottom:4pt}
     #printcard h1{font-size:20pt; margin:0 0 2pt; line-height:1.1}
@@ -624,8 +685,12 @@
 
     <div class="masthead">
       <div class="kicker" data-t="kicker">Los Angeles / 2020&ndash;2024</div>
-      <div id="lang" title="Language / Idioma">
-        <span class="on" data-l="en">EN</span><span data-l="es">ES</span>
+      <div class="mast-tools">
+        <button id="help" type="button" data-tt="tour.help" title="Show me around"
+                aria-label="Show me around">?</button>
+        <div id="lang" title="Language / Idioma">
+          <span class="on" data-l="en">EN</span><span data-l="es">ES</span>
+        </div>
       </div>
       <h1>Safe Routes<em data-t="h1sub">to School</em></h1>
       <p data-t="tagline">Walking directions built from where students actually get robbed,
@@ -751,10 +816,6 @@
           <h2 data-t="open.h">Open it somewhere else</h2>
           <div class="actions">
             <button class="ghost" id="open-g" data-t="open.g">Google Maps</button>
-            <a class="ghost" id="open-a" href="#" target="_blank" rel="noopener"
-               data-t="open.a">Apple Maps &mdash; direct route</a>
-            <a class="ghost" id="open-w" href="#" target="_blank" rel="noopener"
-               data-t="open.w">Waze &mdash; driving</a>
             <button class="ghost" id="open-gpx" data-t="open.gpx">Download GPX</button>
           </div>
           <p class="note" id="open-note"></p>
@@ -1052,6 +1113,20 @@
 </div>
 
 <!-- Filled in when a route is printed. Hidden on screen, the only thing on paper. -->
+<div id="tour" role="dialog" aria-modal="true" aria-labelledby="tour-h">
+  <div id="tour-spot"></div>
+  <div id="tour-pop">
+    <button id="tour-x" type="button" aria-label="Close" data-tt="tour.close" title="Close">&times;</button>
+    <h3 id="tour-h"></h3>
+    <p id="tour-b"></p>
+    <div id="tour-foot">
+      <div id="tour-dots" aria-hidden="true"></div>
+      <button class="tbtn quiet" id="tour-skip" type="button"></button>
+      <button class="tbtn" id="tour-next" type="button"></button>
+    </div>
+  </div>
+</div>
+
 <div id="printcard"></div>
 
 <!-- Leaflet 1.9.4, vendored so the offline copy does not depend on a CDN. -->

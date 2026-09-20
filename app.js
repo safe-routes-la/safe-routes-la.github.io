@@ -159,13 +159,45 @@ const EN = {
     + 'Put in your own school and starting point to replace it.',
 
   'open.note': 'Google is sent a few waypoints so its router follows this route '
-    + 'instead of the short way. Apple and Waze accept only a start and an end, '
-    + 'so they will pick their own way there. The GPX file is the only one that '
-    + 'carries this route exactly.',
+    + 'instead of the short way. The GPX file carries it exactly, and is the '
+    + 'better choice on an iPhone: Organic Maps, OsmAnd and Komoot all draw it '
+    + 'as given. Apple Maps and Waze are not offered because neither accepts '
+    + 'waypoints, so both would quietly send you the short way.',
   'open.ready': 'Google was sent <b>{k} waypoints</b> and should hold about '
-    + '<b>{f}%</b> of this route. Apple and Waze still choose their own.',
+    + '<b>{f}%</b> of this route.',
   'open.working': 'Working out the waypoints\u2026',
   'toast.gpx': 'GPX saved. Open it in Organic Maps, OsmAnd or Komoot.',
+
+  'tour.close': 'Close',
+  'tour.help': 'Show me around',
+  'tour.skip': 'No thanks',
+  'tour.back': 'Back',
+  'tour.next': 'Next',
+  'tour.done': 'Got it',
+  'tour.start': 'Show me around',
+  'tour.0h': 'Walking directions that account for where students get hurt',
+  'tour.0b': 'Most map apps answer one question: which way is shortest. This one '
+    + 'scores every block in Los Angeles from <b>85,634 real crime records</b> and '
+    + 'routes around the worst of them. Want a quick look at how to read it?',
+  'tour.1h': 'Where you are walking',
+  'tour.1b': 'Put in where you start and which school. Two cross streets like '
+    + '<b>Hauser &amp; Venice</b> work offline, and you can click the map to drop a '
+    + 'pin instead.',
+  'tour.2h': 'The hour changes the answer',
+  'tour.2b': 'The same street is not equally risky at 7am and at 9pm, so the scores '
+    + 'shift with the time of day. This starts on <b>the hour it is now</b>.',
+  'tour.3h': 'Three ways to walk it',
+  'tour.3b': '<b>Shortest</b> is what an ordinary map app would give you. '
+    + '<b>Safest</b> avoids the worst blocks. Each card shows the minutes and the '
+    + 'exposure score, so you can see exactly what the detour buys.',
+  'tour.4h': 'Why this route',
+  'tour.4b': 'It names the street it avoided, what that street scores at this hour, '
+    + 'and what the detour costs you in minutes. If the reason is not good enough, '
+    + 'pick a different card.',
+  'tour.5h': 'Taking it with you',
+  'tour.5b': 'Google Maps is sent waypoints so its router follows this route instead '
+    + 'of the short way. <b>GPX</b> carries it exactly, and there is a printable '
+    + 'card for a student without a phone.',
 };
 
 const LANGS = Object.assign({ en: { name: 'English', s: {}, d: EN } }, window.LANGS || {});
@@ -208,6 +240,7 @@ function applyLang() {
   $('lg-when').textContent = winName(S.bucket);
   renderPreset();
   renderEmbed();
+  window.srsTourRelabel?.();
   renderNet();
   if (S.routes) { renderCards(); select(S.pick, false); }
   if (S.report) renderReport();
@@ -233,13 +266,60 @@ function setLang(l, persist = true) {
 const map = L.map('map', { zoomControl: false, preferCanvas: true })
   .setView([34.035, -118.33], 13);
 L.control.zoom({ position: 'bottomleft' }).addTo(map);
-L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
-  attribution: '&copy; OpenStreetMap &copy; CARTO / crime records: LAPD via data.lacity.org',
-  maxZoom: 19, subdomains: 'abcd',
-}).addTo(map);
-L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png', {
-  maxZoom: 19, subdomains: 'abcd', pane: 'shadowPane',
-}).addTo(map);
+/* CARTO's free basemap endpoint now answers with an "API key required" tile,
+ * which drew that sentence across the map. Esri's Dark Gray Canvas needs no
+ * key, and being dark already it needs no colour correction to sit on the
+ * ground. Its tiles stop at z16, so Leaflet is told to upscale past that
+ * rather than show nothing. If it ever stops answering, fall back to
+ * OpenStreetMap's own tiles, inverted to match. The street network is drawn
+ * from graph.bin either way, so a basemap that never loads costs context,
+ * not the map. */
+const BASEMAPS = {
+  esri: {
+    base: 'https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+    labels: 'https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}',
+    maxNativeZoom: 16,
+    attribution: 'Esri, HERE, Garmin, &copy; OpenStreetMap / crime records: LAPD via data.lacity.org',
+  },
+  osm: {
+    base: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    labels: null,
+    maxNativeZoom: 19,
+    attribution: '&copy; OpenStreetMap / crime records: LAPD via data.lacity.org',
+  },
+};
+
+let baseTiles = [], basemapName = null;
+
+function useBasemap(name) {
+  if (basemapName === name) return;
+  const cfg = BASEMAPS[name];
+  if (!cfg) return;
+  for (const l of baseTiles) map.removeLayer(l);
+  baseTiles = [];
+  basemapName = name;
+  document.body.classList.toggle('basemap-osm', name === 'osm');
+
+  const common = { maxZoom: 19, maxNativeZoom: cfg.maxNativeZoom };
+  const base = L.tileLayer(cfg.base, { ...common, attribution: cfg.attribution });
+  base.addTo(map);
+  baseTiles.push(base);
+  if (cfg.labels) {
+    const lab = L.tileLayer(cfg.labels, { ...common, pane: 'shadowPane' });
+    lab.addTo(map);
+    baseTiles.push(lab);
+  }
+
+  // One dead tile is a gap; a wall of them is a provider that is not serving
+  // us. Only the first choice gets to fall back, so this cannot ping-pong.
+  if (name === 'esri') {
+    let dead = 0;
+    base.on('tileerror', () => {
+      if (++dead === 6) useBasemap('osm');
+    });
+  }
+}
+useBasemap('esri');
 
 const riskLayer = L.layerGroup().addTo(map);
 const routeLayer = L.layerGroup().addTo(map);
@@ -263,11 +343,11 @@ function toast(msg) {
 /* Five flat steps rather than a smooth ramp, so the legend and the map agree
  * and a colour always maps back to a readable band. */
 const BANDS = [
-  { upto: 0.20, hex: '#8a2d2b' },
-  { upto: 0.40, hex: '#b53a38' },
-  { upto: 0.60, hex: '#d9524f' },
-  { upto: 0.80, hex: '#ec7f7b' },
-  { upto: 1.01, hex: '#f9b0ac' },
+  { upto: 0.20, hex: '#7d3612' },
+  { upto: 0.40, hex: '#a34a12' },
+  { upto: 0.60, hex: '#d87321' },
+  { upto: 0.80, hex: '#f0a03c' },
+  { upto: 1.01, hex: '#ffd08a' },
 ];
 const bandColor = v => (BANDS.find(b => v <= b.upto) || BANDS[4]).hex;
 
@@ -276,7 +356,7 @@ const bandColor = v => (BANDS.find(b => v <= b.upto) || BANDS[4]).hex;
  * underneath it without adding a third colour. */
 const MAP = {
   ground: '#071118',
-  accent: '#2ee6d0',
+  accent: '#35c8ff',
   ink:    '#dfe7ea',
   ghost:  '#5a7480',
 };
@@ -1366,23 +1446,16 @@ function googleUrl(r, wps) {
   return `https://www.google.com/maps/dir/?${p}`;
 }
 
-/* Apple's URL scheme has no waypoint parameter, so this is the direct walk and
- * nothing can be done about it from here. The button says so. */
-function appleUrl(r) {
-  const p = new URLSearchParams({
-    saddr: ll(r.nodes[0]),
-    daddr: ll(r.nodes[r.nodes.length - 1]),
-    dirflg: 'w',
-  });
-  return `https://maps.apple.com/?${p}`;
-}
-
-/* Waze has no waypoints either, and no walking mode at all -- it will give
- * driving directions. Kept because it was asked for; labelled for what it is. */
-function wazeUrl(r) {
-  const dst = r.nodes[r.nodes.length - 1];
-  return `https://waze.com/ul?ll=${ll(dst)}&navigate=yes`;
-}
+/* Apple Maps and Waze used to have buttons here. Both take a start and an end
+ * and nothing in between, so both answered with the shortest walk -- the exact
+ * route this project exists to argue against, measured at +350% exposure on
+ * average and +5,628% at worst. Waze has no walking mode at all and was giving
+ * driving directions for a child on foot. Labelling them did not help: a button
+ * that hands someone the dangerous way is worse than no button, because the
+ * page had already told them this route was safer. Apple's URL scheme has no
+ * waypoint parameter to work around it with, so they are gone. GPX carries the
+ * route exactly and is what an iPhone should use.
+ */
 
 /* The only format that carries the route exactly. Organic Maps, OsmAnd,
  * Komoot and Gaia all import it and draw the polyline as given. */
@@ -1415,8 +1488,6 @@ function renderHandoff(o) {
   $('r-open').style.display = on ? '' : 'none';
   if (!on) return;
   S.handoff = null;
-  $('open-a').href = appleUrl(o.r);
-  $('open-w').href = wazeUrl(o.r);
   setDyn($('open-note'), 'open.note');
 }
 
@@ -2242,3 +2313,129 @@ boot().catch(err => {
   phone.addEventListener?.('change', () => setState('peek'));
   setState('peek');
 })();
+
+/* ------------------------------------------------------------- walkthrough */
+/* Offered once, on a first visit, and never again once it is answered either
+ * way. The first step is an offer rather than the tour itself, so declining
+ * costs one click and nothing is forced on anyone. Steps whose target is not
+ * on screen are dropped rather than pointing at nothing, which is what would
+ * happen in embed mode or before a route exists. */
+(function tour() {
+  const KEY = 'srs-tour-v1';
+  const el = $('tour'), spot = $('tour-spot'), pop = $('tour-pop');
+  const hEl = $('tour-h'), bEl = $('tour-b'), dots = $('tour-dots');
+  const next = $('tour-next'), skip = $('tour-skip'), x = $('tour-x');
+  if (!el) return;
+
+  const STEPS = [
+    { k: 0, sel: null },
+    { k: 1, sel: '.trip' },
+    { k: 2, sel: '#when' },
+    { k: 3, sel: '#r-cards' },
+    { k: 4, sel: '#r-because' },
+    { k: 5, sel: '#r-open' },
+  ];
+  let steps = STEPS, i = 0, open = false;
+
+  const seen = () => { try { return localStorage.getItem(KEY); } catch { return '1'; } };
+  const remember = v => { try { localStorage.setItem(KEY, v); } catch { /* private mode */ } };
+  const shown = s => {
+    if (!s.sel) return true;
+    const t = document.querySelector(s.sel);
+    return !!t && t.offsetParent !== null;
+  };
+
+  function place(s) {
+    el.classList.toggle('nospot', !s.sel);
+    const pad = 6;
+    let r = null;
+    if (s.sel) {
+      const t = document.querySelector(s.sel);
+      t.scrollIntoView({ block: 'center', behavior: 'instant' });
+      r = t.getBoundingClientRect();
+      spot.style.top = (r.top - pad) + 'px';
+      spot.style.left = (r.left - pad) + 'px';
+      spot.style.width = (r.width + pad * 2) + 'px';
+      spot.style.height = (r.height + pad * 2) + 'px';
+    } else {
+      // No target: collapse the spotlight to a point so its shadow is a plain
+      // scrim, and centre the card.
+      spot.style.top = '50%'; spot.style.left = '50%';
+      spot.style.width = '0px'; spot.style.height = '0px';
+    }
+
+    const pw = pop.offsetWidth, ph = pop.offsetHeight;
+    const vw = innerWidth, vh = innerHeight, gap = 14;
+    let top, left;
+    if (!r) {
+      top = (vh - ph) / 2; left = (vw - pw) / 2;
+    } else {
+      const below = r.bottom + gap, above = r.top - gap - ph;
+      top = (below + ph <= vh - 8) ? below : (above >= 8 ? above : Math.max(8, (vh - ph) / 2));
+      left = r.left + r.width / 2 - pw / 2;
+    }
+    pop.style.top = Math.max(8, Math.min(top, vh - ph - 8)) + 'px';
+    pop.style.left = Math.max(8, Math.min(left, vw - pw - 8)) + 'px';
+  }
+
+  function render() {
+    const s = steps[i];
+    setDyn(hEl, `tour.${s.k}h`);
+    setDyn(bEl, `tour.${s.k}b`);
+    dots.innerHTML = steps.map((_, n) => `<i class="${n === i ? 'on' : ''}"></i>`).join('');
+    const first = i === 0, last = i === steps.length - 1;
+    skill(skip, first ? 'tour.skip' : 'tour.back');
+    skill(next, first ? 'tour.start' : (last ? 'tour.done' : 'tour.next'));
+    place(s);
+  }
+  // The two footer buttons change meaning between steps, so their labels are
+  // set from the pack rather than carried on the element as data-t.
+  function skill(btn, key) { btn.textContent = t(key); btn.dataset.tkey = key; }
+
+  function start(fromOffer) {
+    steps = fromOffer ? STEPS.filter(shown) : STEPS.filter(s => !s.sel || shown(s));
+    if (!steps.length) return;
+    i = 0; open = true;
+    el.classList.add('on');
+    render();
+    next.focus();
+  }
+  function close(how) {
+    open = false;
+    el.classList.remove('on');
+    remember(how);
+  }
+
+  next.addEventListener('click', () => {
+    if (i === steps.length - 1) { close('done'); return; }
+    i++; render();
+  });
+  skip.addEventListener('click', () => {
+    if (i === 0) { close('skipped'); return; }
+    i--; render();
+  });
+  x.addEventListener('click', () => close('skipped'));
+  document.addEventListener('keydown', e => {
+    if (!open) return;
+    if (e.key === 'Escape') { e.preventDefault(); close('skipped'); }
+    else if (e.key === 'ArrowRight') next.click();
+    else if (e.key === 'ArrowLeft' && i > 0) skip.click();
+  });
+  addEventListener('resize', () => { if (open) place(steps[i]); });
+
+  // Re-label on a language switch while the tour is open.
+  window.srsTourRelabel = () => {
+    if (!open) return;
+    skill(skip, skip.dataset.tkey); skill(next, next.dataset.tkey);
+    const s = steps[i];
+    setDyn(hEl, `tour.${s.k}h`); setDyn(bEl, `tour.${s.k}b`);
+  };
+  // Offered from the Method tab too, for anyone who dismissed it.
+  window.srsTourOpen = () => start(true);
+
+  // Wait for the opening example to finish so the result steps have something
+  // to point at; embed mode gets no tour at all.
+  if (!S.embed && !seen()) setTimeout(() => { if (!seen()) start(true); }, 1400);
+})();
+
+$('help').addEventListener('click', () => window.srsTourOpen?.());
