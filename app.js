@@ -1029,7 +1029,12 @@ function compute(fit = true) {
   // when a trip is first planned, not on every window or mode change.
   if (fit) {
     const panes = document.querySelector('.panes');
-    const top = panes.scrollTop + $('r-cards').getBoundingClientRect().top
+    // When the trip is the example we planned on the visitor's behalf, the
+    // line saying so sits just above the cards: land on that instead, or the
+    // disclosure scrolls out of sight and the example reads as their own.
+    const note = $('example-note');
+    const anchor = note.style.display === 'none' ? $('r-cards') : note;
+    const top = panes.scrollTop + anchor.getBoundingClientRect().top
               - panes.getBoundingClientRect().top - 6;
     panes.scrollTo({ top, behavior: 'smooth' });
   }
