@@ -1,0 +1,104 @@
+<!doctype html>
+<meta charset="utf-8">
+<!--
+  Source for /og-image.png, the link preview card. Kept in the repo so the
+  image is reproducible rather than a binary nobody can edit.
+
+    python3 -m http.server 8000
+    # then screenshot this page at exactly 1200x630, after the webfonts load:
+    #   viewport 1200x630, wait ~2s, save to og-image.png
+
+  1200x630 is the size Open Graph, Twitter and Slack all crop least badly.
+  Every colour here is a literal copy of a token in index.html; this page
+  cannot import them, so if the palette moves, it moves here too.
+-->
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,900&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{width:1200px;height:630px;background:#071118;overflow:hidden;position:relative;
+       font-family:'IBM Plex Sans',system-ui,sans-serif;color:#dfe7ea}
+  /* the city under everything, at the weight it has on the real map */
+  #grid{position:absolute;inset:0}
+  #grid line{stroke:#dfe7ea;stroke-opacity:.05;stroke-width:1}
+  #grid .hot{fill:#d87321;fill-opacity:.85}
+  /* The route sits in the empty right-hand quadrant, clear of every line of
+     type: it is the brand mark at billboard scale, not a texture. */
+  #grid .route{stroke:#35c8ff;stroke-width:6;fill:none;
+               stroke-linecap:round;stroke-linejoin:round}
+  #grid .cap{fill:#35c8ff}
+  .wrap{position:relative;z-index:2;height:100%;padding:72px 80px;
+        display:flex;flex-direction:column;justify-content:space-between}
+  .top{display:flex;align-items:center;gap:26px}
+  .top svg{width:104px;height:104px;display:block}
+  h1{font-family:'Fraunces',Georgia,serif;font-weight:900;font-size:76px;
+     letter-spacing:-.022em;line-height:1;font-variation-settings:"opsz" 96}
+  h1 b{color:#35c8ff;font-weight:900}
+  .la{font-size:19px;font-weight:600;letter-spacing:.14em;color:#8aa0a8;
+      border:1px solid rgba(223,231,234,.27);border-radius:999px;padding:7px 16px;
+      align-self:center;margin-left:4px}
+  p.tag{font-size:33px;color:#dfe7ea;line-height:1.3;margin-top:34px;letter-spacing:-.01em}
+  p.tag em{display:block;font-style:normal;color:#8aa0a8;margin-top:6px}
+  .foot{display:flex;align-items:flex-end;justify-content:space-between;gap:40px}
+  .ramp{display:flex;height:11px;width:300px;border-radius:999px;overflow:hidden}
+  .ramp i{flex:1}
+  .rl{display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;
+      font-size:13px;color:#6b8189;margin-top:9px;width:300px;letter-spacing:.04em}
+  .stat{text-align:right;font-family:'IBM Plex Mono',monospace;font-size:15px;
+        color:#6b8189;line-height:1.7;font-variant-numeric:tabular-nums}
+  .stat b{color:#dfe7ea;font-weight:500}
+</style>
+
+<svg id="grid" viewBox="0 0 1200 630" preserveAspectRatio="none">
+  <g>
+    <line x1="0" y1="90" x2="1200" y2="90"/><line x1="0" y1="200" x2="1200" y2="200"/>
+    <line x1="0" y1="310" x2="1200" y2="310"/><line x1="0" y1="420" x2="1200" y2="420"/>
+    <line x1="0" y1="530" x2="1200" y2="530"/>
+    <line x1="120" y1="0" x2="120" y2="630"/><line x1="290" y1="0" x2="290" y2="630"/>
+    <line x1="460" y1="0" x2="460" y2="630"/><line x1="630" y1="0" x2="630" y2="630"/>
+    <line x1="800" y1="0" x2="800" y2="630"/><line x1="970" y1="0" x2="970" y2="630"/>
+    <line x1="1140" y1="0" x2="1140" y2="630"/>
+    <rect class="hot" x="990" y="262" width="68" height="68" rx="14"/>
+    <path class="route" d="M742 462V352H1120V272"/>
+    <circle class="cap" cx="742" cy="462" r="13"/>
+    <!-- same construction as the favicon: shallow roof, flanked body, and a
+         doorway the walk ends inside. Without the doorway it reads as an arrow. -->
+    <path class="cap" d="M1120 222L1158 254V290H1082V254Z"/>
+    <rect x="1108" y="262" width="24" height="28" rx="3" fill="#071118"/>
+  </g>
+</svg>
+
+<div class="wrap">
+  <div>
+    <div class="top">
+      <svg viewBox="0 0 32 32">
+        <rect width="32" height="32" rx="7" fill="#0b1a24"/>
+        <g stroke="#dfe7ea" stroke-opacity=".09" stroke-width="1"><path d="M0 22h32M4 0v32"/></g>
+        <rect x="8.5" y="7" width="7" height="7" rx="1.7" fill="#d87321"/>
+        <path d="M8 26.4V17.8H21V10.4" fill="none" stroke="#35c8ff" stroke-width="3.2"
+              stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="8" cy="26.4" r="2.8" fill="#35c8ff"/>
+        <path d="M21 5L25.2 8.6V12.6H16.8V8.6Z" fill="#35c8ff"/>
+        <rect x="19.2" y="9.5" width="3.6" height="3.1" rx="0.5" fill="#0b1a24"/>
+      </svg>
+      <h1>Walk<b>Home</b></h1>
+      <span class="la">LA</span>
+    </div>
+    <p class="tag">The safer way home from school.
+       <em>Not the shortest one.</em></p>
+  </div>
+
+  <div class="foot">
+    <div>
+      <div class="ramp">
+        <i style="background:#7d3612"></i><i style="background:#a34a12"></i>
+        <i style="background:#d87321"></i><i style="background:#f0a03c"></i>
+        <i style="background:#ffd08a"></i>
+      </div>
+      <div class="rl"><span>calmer</span><span>worst in LA</span></div>
+    </div>
+    <div class="stat">
+      <b>85,634</b> violent-crime records<br>
+      Los Angeles &middot; <b>2020&ndash;2024</b>
+    </div>
+  </div>
+</div>

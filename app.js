@@ -1948,7 +1948,14 @@ function buildPrintCard() {
     { year: 'numeric', month: 'long', day: 'numeric' });
 
   $('printcard').innerHTML = `
-    <div class="k">${t('pc.k')}</div>
+    <div class="k"><svg class="pcmark" viewBox="0 0 32 32" aria-hidden="true">
+      <rect x="8.5" y="7" width="7" height="7" rx="1.7" fill="#000" opacity=".35"/>
+      <path d="M8 26.4V17.8H21V10.4" fill="none" stroke="#000" stroke-width="3.2"
+            stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="8" cy="26.4" r="2.8" fill="#000"/>
+      <path d="M21 5L25.2 8.6V12.6H16.8V8.6Z" fill="#000"/>
+      <rect x="19.2" y="9.5" width="3.6" height="3.1" rx=".5" fill="#fff"/>
+    </svg>${t('pc.k')}</div>
     <h1>${esc(S.school.name)}<small>${t('pc.from', { from: esc($('origin').value) })}</small></h1>
     <div class="meta">${t('pc.when', { win: winName(b), clock: winClock(b), mode })}</div>
     <table class="sum">
