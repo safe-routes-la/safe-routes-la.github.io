@@ -621,13 +621,25 @@
     position:absolute; top:13px; right:14px;
     display:flex; align-items:center; gap:6px;
   }
+  /* Labelled rather than a bare glyph. It was a 24px "?" and nobody had any
+     reason to press it -- which matters, because once the walkthrough offer
+     has been answered this control is the only way back to it. It is built to
+     match #lang beside it so the two read as one pair of utilities. */
   #help{
-    width:24px; height:24px; border-radius:50%; cursor:pointer;
-    background:var(--field); border:1px solid var(--rule);
-    color:var(--dim); font-family:inherit; font-size:12.5px; font-weight:600;
-    display:grid; place-items:center; padding:0; line-height:1;
+    display:flex; align-items:center; gap:5px; cursor:pointer;
+    background:var(--field); border:1px solid var(--rule); border-radius:var(--pill);
+    color:var(--dim); font-family:inherit; font-size:10.5px; font-weight:600;
+    letter-spacing:.06em; text-transform:uppercase;
+    padding:3px 9px 3px 4px; line-height:1;
+    transition:color var(--t-fast) var(--e-out), border-color var(--t-fast) var(--e-out);
   }
-  #help:hover{color:var(--accent); border-color:var(--accent-line)}
+  #help i{
+    display:grid; place-items:center; width:16px; height:16px; border-radius:50%;
+    background:var(--accent-dim); color:var(--accent);
+    font-style:normal; font-size:10.5px; letter-spacing:0;
+  }
+  #help:hover{color:var(--ink); border-color:var(--accent-line)}
+  #help:hover i{background:var(--accent); color:var(--paper)}
   #lang{
     display:flex; gap:2px;
     background:var(--field); border:1px solid var(--rule); border-radius:var(--pill);
@@ -807,7 +819,7 @@
       <div class="kicker" data-t="kicker">Los Angeles / 2020&ndash;2024</div>
       <div class="mast-tools">
         <button id="help" type="button" data-tt="tour.help" title="Show me around"
-                aria-label="Show me around">?</button>
+                aria-label="Show me around"><i aria-hidden="true">?</i><span data-t="tour.pill">Tour</span></button>
         <div id="lang" title="Language / Idioma">
           <span class="on" data-l="en">EN</span><span data-l="es">ES</span>
         </div>

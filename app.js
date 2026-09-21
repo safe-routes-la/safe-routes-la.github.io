@@ -2322,16 +2322,29 @@ boot().catch(err => {
 })();
 
 /* ------------------------------------------------------------- walkthrough */
-/* Offered once, on a first visit, and never again once it is answered either
- * way. The first step is an offer rather than the tour itself, so declining
- * costs one click and nothing is forced on anyone. Steps whose target is not
- * on screen are dropped rather than pointing at nothing, which is what would
- * happen in embed mode or before a route exists. */
+/* The first step is an offer rather than the tour itself, so declining costs
+ * one click and nothing is forced on anyone. Steps whose target is not on
+ * screen are dropped rather than pointing at nothing, which is what would
+ * happen in embed mode or before a route exists.
+ *
+ * How often it is offered is the part that took two passes to get right. The
+ * first version wrote one flag and never asked again, which sounds polite and
+ * is not: dismissing a dialog is a reflex, so one stray click cost that
+ * visitor the walkthrough permanently and left no visible way back. The rule
+ * now distinguishes the two answers, because they mean different things:
+ *
+ *   finished it   -> never auto-offer again. They have seen the whole thing.
+ *   skipped it    -> offer once more, on a later visit. Then stop for good.
+ *
+ * Two offers, never in the same session, and never in an embed. Anyone who
+ * wants it back sooner has the labelled control in the masthead or a #tour
+ * link, both of which bypass the count entirely. */
 (function tour() {
-  // Deliberately still the old key: the rename is cosmetic to a visitor, and
-  // re-prompting everyone who already dismissed the tour would be a worse
-  // greeting than a stale-looking string in localStorage.
-  const KEY = 'srs-tour-v1';
+  // v2 because the old flag is what stranded existing visitors: everyone who
+  // answered the one-shot version is re-offered exactly once under the new
+  // rule, then falls under it like anybody else.
+  const KEY = 'wh-tour-v2';
+  const SKEY = 'wh-tour-session';
   const el = $('tour'), spot = $('tour-spot'), pop = $('tour-pop');
   const hEl = $('tour-h'), bEl = $('tour-b'), dots = $('tour-dots');
   const next = $('tour-next'), skip = $('tour-skip'), x = $('tour-x');
@@ -2345,10 +2358,42 @@ boot().catch(err => {
     { k: 4, sel: '#r-because' },
     { k: 5, sel: '#r-open' },
   ];
-  let steps = STEPS, i = 0, open = false;
+  let steps = STEPS, i = 0, open = false, manual = false;
 
-  const seen = () => { try { return localStorage.getItem(KEY); } catch { return '1'; } };
+  // Storage is wrapped because both of these throw outright in some private
+  // modes rather than returning null, and a walkthrough must not be able to
+  // break the page it is introducing.
+  const read = () => { try { return localStorage.getItem(KEY); } catch { return 'done'; } };
   const remember = v => { try { localStorage.setItem(KEY, v); } catch { /* private mode */ } };
+  const offeredHere = () => { try { return !!sessionStorage.getItem(SKEY); } catch { return false; } };
+  const markSession = () => { try { sessionStorage.setItem(SKEY, '1'); } catch { /* ignore */ } };
+
+  // A link ending in #tour (or ?tour=1) opens the walkthrough whatever the
+  // stored answer says. That is the shareable form: a teacher can hand out one
+  // URL that explains the tool on arrival instead of explaining it in person.
+  //
+  // Read once, here, at parse time. The opening worked example rewrites the
+  // address bar into a share link within the first frame, so by the time the
+  // offer timer fires the #tour that asked for this is long gone -- which is
+  // exactly how this silently did nothing the first time it was written.
+  const FORCED = (() => {
+    try {
+      return location.hash === '#tour'
+        || new URLSearchParams(location.search).get('tour') === '1';
+    } catch { return false; }
+  })();
+  const forced = () => FORCED;
+
+  // The whole decision, in one place so it can be read at a glance.
+  function shouldOffer() {
+    if (S.embed) return false;          // an embed is someone else's page
+    if (forced()) return true;          // an explicit ask beats every rule
+    if (offeredHere()) return false;    // once per session, at most
+    const v = read();
+    if (!v) return true;                // never answered
+    if (v === 'done') return false;     // finished it; do not ask again
+    return v === 'skip:1';              // skipped once; this is the last offer
+  }
   const shown = s => {
     if (!s.sel) return true;
     const t = document.querySelector(s.sel);
@@ -2402,10 +2447,10 @@ boot().catch(err => {
   // set from the pack rather than carried on the element as data-t.
   function skill(btn, key) { btn.textContent = t(key); btn.dataset.tkey = key; }
 
-  function start(fromOffer) {
+  function start(fromOffer, byHand) {
     steps = fromOffer ? STEPS.filter(shown) : STEPS.filter(s => !s.sel || shown(s));
     if (!steps.length) return;
-    i = 0; open = true;
+    i = 0; open = true; manual = !!byHand;
     el.classList.add('on');
     render();
     next.focus();
@@ -2413,7 +2458,13 @@ boot().catch(err => {
   function close(how) {
     open = false;
     el.classList.remove('on');
-    remember(how);
+    // Replaying it on purpose must not rewrite the count. Without this, asking
+    // for the tour from the masthead and then closing it at step 0 would store
+    // 'skip:1' over a 'done', handing that visitor an auto-offer they had
+    // already finished out of.
+    if (manual) return;
+    if (how === 'done') { remember('done'); return; }
+    remember(read() === 'skip:1' ? 'skip:2' : 'skip:1');
   }
 
   next.addEventListener('click', () => {
@@ -2440,12 +2491,21 @@ boot().catch(err => {
     const s = steps[i];
     setDyn(hEl, `tour.${s.k}h`); setDyn(bEl, `tour.${s.k}b`);
   };
-  // Offered from the Method tab too, for anyone who dismissed it.
-  window.srsTourOpen = () => start(true);
+  // Asked for by hand: from the masthead control, or from a #tour link. Never
+  // counts against the two automatic offers.
+  window.srsTourOpen = () => start(true, true);
+
+  // A #tour link that arrives while the page is already open should still run.
+  addEventListener('hashchange', () => { if (location.hash === '#tour' && !open) window.srsTourOpen(); });
 
   // Wait for the opening example to finish so the result steps have something
-  // to point at; embed mode gets no tour at all.
-  if (!S.embed && !seen()) setTimeout(() => { if (!seen()) start(true); }, 1400);
+  // to point at. shouldOffer() is re-checked after the delay because the tab
+  // can be answered or navigated in the meantime.
+  if (shouldOffer()) setTimeout(() => {
+    if (!shouldOffer() || open) return;
+    markSession();
+    start(true, forced());
+  }, 1400);
 })();
 
 $('help').addEventListener('click', () => window.srsTourOpen?.());
