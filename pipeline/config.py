@@ -1,4 +1,4 @@
-"""Shared configuration for the Safe Routes pipeline."""
+"""Shared configuration for the WalkHome pipeline."""
 import os
 
 # ---------------------------------------------------------------- study area

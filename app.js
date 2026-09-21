@@ -1,4 +1,4 @@
-/* Safe Routes to School / Los Angeles
+/* WalkHome LA
  *
  * Everything runs in the browser. The pipeline ships a packed binary graph
  * where each block already carries a risk score per time-of-day window, and
@@ -142,7 +142,7 @@ const EN = {
   'boot.sub': '{n} incidents / {km} km of street',
   'boot.fail': 'The data files did not load.',
 
-  'pc.k': 'Walking card / Safe Routes to School',
+  'pc.k': 'Walking card / WalkHome LA',
   'pc.to': 'to {school}',
   'pc.from': 'From {from}',
   'pc.when': 'For the {win} ({clock}), {mode}.',
@@ -1948,7 +1948,14 @@ function buildPrintCard() {
     { year: 'numeric', month: 'long', day: 'numeric' });
 
   $('printcard').innerHTML = `
-    <div class="k">${t('pc.k')}</div>
+    <div class="k"><svg class="pcmark" viewBox="0 0 32 32" aria-hidden="true">
+      <rect x="8.5" y="7" width="7" height="7" rx="1.7" fill="#000" opacity=".35"/>
+      <path d="M8 26.4V17.8H21V10.4" fill="none" stroke="#000" stroke-width="3.2"
+            stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="8" cy="26.4" r="2.8" fill="#000"/>
+      <path d="M21 5L25.2 8.6V12.6H16.8V8.6Z" fill="#000"/>
+      <rect x="19.2" y="9.5" width="3.6" height="3.1" rx=".5" fill="#fff"/>
+    </svg>${t('pc.k')}</div>
     <h1>${esc(S.school.name)}<small>${t('pc.from', { from: esc($('origin').value) })}</small></h1>
     <div class="meta">${t('pc.when', { win: winName(b), clock: winClock(b), mode })}</div>
     <table class="sum">
@@ -1986,7 +1993,7 @@ function renderEmbed() {
   const url = presetUrl(sc);
   $('embed-code').value =
     `<iframe src="${url}&embed=1" width="100%" height="640" style="border:0" `
-    + `title="Safe Routes to School: ${sc.name.replace(/"/g, '')}" loading="lazy"></iframe>\n`
+    + `title="WalkHome LA: ${sc.name.replace(/"/g, '')}" loading="lazy"></iframe>\n`
     + `<!-- ${url} -->`;
   el.style.display = '';
 }
@@ -2321,6 +2328,9 @@ boot().catch(err => {
  * on screen are dropped rather than pointing at nothing, which is what would
  * happen in embed mode or before a route exists. */
 (function tour() {
+  // Deliberately still the old key: the rename is cosmetic to a visitor, and
+  // re-prompting everyone who already dismissed the tour would be a worse
+  // greeting than a stale-looking string in localStorage.
   const KEY = 'srs-tour-v1';
   const el = $('tour'), spot = $('tour-spot'), pop = $('tour-pop');
   const hEl = $('tour-h'), bEl = $('tour-b'), dots = $('tour-dots');
@@ -2439,3 +2449,14 @@ boot().catch(err => {
 })();
 
 $('help').addEventListener('click', () => window.srsTourOpen?.());
+
+/* ------------------------------------------------------------------ brand */
+/* The mark draws itself once the page is up. The boot copy keeps redrawing
+ * while the graph downloads, so the wait carries the idea instead of a spinner
+ * that says nothing. */
+(function brand() {
+  const boot = document.querySelector('#boot .mark');
+  if (boot) boot.classList.add('loop');
+  const head = document.querySelector('.masthead .mark');
+  if (head) requestAnimationFrame(() => head.classList.add('go'));
+})();

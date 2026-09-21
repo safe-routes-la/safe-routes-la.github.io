@@ -3,12 +3,36 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Safe Routes to School / Los Angeles</title>
+<title>WalkHome LA / the safer way home from school</title>
 <meta name="theme-color" content="#071118">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icon-192.png">
 <meta name="description" content="Walking directions for Los Angeles students built from 85,634 real violent-crime records, so the route accounts for where students actually get hurt and not just which way is shortest.">
+<meta name="color-scheme" content="dark">
+
+<!-- Link previews. Absolute URLs, because every scraper resolves these against
+     its own host, not the page's. -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="WalkHome LA">
+<meta property="og:url" content="https://safe-routes-la.github.io/">
+<meta property="og:title" content="WalkHome LA">
+<meta property="og:description" content="The safer way home from school, not the shortest one. Walking directions for Los Angeles students, scored block by block from 85,634 real violent-crime records and re-scored for the hour you are actually walking.">
+<meta property="og:image" content="https://safe-routes-la.github.io/og-image.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="WalkHome LA. A walking route stepping around a high-risk block and arriving at a house, over the risk scale from calmer to worst in LA.">
+<meta property="og:locale" content="en_US">
+<meta property="og:locale:alternate" content="es_US">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="WalkHome LA">
+<meta name="twitter:description" content="The safer way home from school, not the shortest one. Scored block by block from 85,634 real crime records, and re-scored for the hour you are actually walking.">
+<meta name="twitter:image" content="https://safe-routes-la.github.io/og-image.png">
+
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="WalkHome">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -21,7 +45,11 @@
        could not give. */
     --paper:#071118; --paper-2:#0a1620; --card:#0c1a22; --card-2:#102029;
     --field:#0a1721; --field-2:#0e1f2a;
-    --ink:#dfe7ea; --dim:#8aa0a8; --faint:#63787f;
+    /* Measured against --paper, not chosen by eye: ink 15.20:1 (AAA),
+       dim 6.96:1 (AA), faint 4.65:1 (AA). The old faint was #63787f at
+       4.10:1, which failed AA for normal text and is used for every note and
+       section heading in the panel, so it was lifted until it passed. */
+    --ink:#dfe7ea; --dim:#8aa0a8; --faint:#6b8189;
     --rule:rgba(223,231,234,.13); --rule-2:rgba(223,231,234,.27);
 
     /* The route line. Cool on purpose: nothing on the risk scale is cool, so
@@ -53,7 +81,46 @@
     --sh-3:0 12px 40px rgba(0,0,0,.55), 0 2px 8px rgba(0,0,0,.4);
     --pad:18px;
     --sheet-peek:150px;
+
+    /* Motion. Four durations and three curves, because the interface only
+       makes four kinds of move and anything outside them reads as a different
+       product. Everything here is disabled under prefers-reduced-motion.
+         fast  state flips the eye should not have to watch (hover, tint)
+         base  something changing position or size under a finger
+         slow  a surface arriving or leaving
+         draw  the mark walking its route, which is a statement, not feedback */
+    --t-fast:120ms; --t-base:200ms; --t-slow:320ms; --t-draw:1000ms;
+    /* standard: decelerate into place. spring: overshoot, for things that
+       "land". sheet: a long tail, so a dragged surface settles rather than
+       stops. */
+    --e-out:cubic-bezier(.4,0,.2,1);
+    --e-spring:cubic-bezier(.34,1.56,.64,1);
+    --e-sheet:cubic-bezier(.32,.72,0,1);
+
+    /* Type. A 1.2 ratio from 11px, rounded to whole and half pixels so nothing
+       lands on a third of a pixel and blurs. */
+    --fs-micro:11px; --fs-small:12.5px; --fs-body:14px;
+    --fs-lead:15.5px; --fs-title:21px; --fs-display:30px;
   }
+
+  /* Numbers in this product change while you look at them: the clock moves the
+     time window, a different card changes the minutes, a different hour
+     changes every score. Proportional digits re-flow the row on each change,
+     which reads as instability in a tool whose whole claim is measurement.
+     Every figure is lining and tabular. */
+  .rc .num, .hrow b, .readout .row b, .because b, ol.turnlist .m,
+  ol.turnlist .chip, table.approach td.sc, table.data td, #legend .cnt,
+  .figure .n, .sdg .g, #boot small, .masthead .kicker{
+    font-variant-numeric:tabular-nums lining-nums;
+    font-feature-settings:"tnum" 1,"lnum" 1;
+  }
+
+  /* Fraunces carries an optical-size axis; using it means the display weight is
+     drawn for display size rather than scaled up from text size. */
+  .masthead h1.brand{font-variation-settings:"opsz" 40}
+  .figure .n{font-variation-settings:"opsz" 96}
+
+  ::selection{background:var(--accent); color:var(--paper)}
   *{box-sizing:border-box; margin:0; padding:0}
   html,body{height:100%}
   body{
@@ -87,13 +154,59 @@
     font-family:var(--mono); font-size:9.5px; letter-spacing:.16em;
     text-transform:uppercase; color:var(--faint); margin-bottom:5px;
   }
-  .masthead h1{
+  /* ------------------------------------------------------------- brand */
+  /* The mark is the product in one glyph: a walk stepping around a block it
+     would otherwise cross, arriving at a door. It draws itself on load, which
+     is the one animation that says what the app does rather than decorating
+     the wait. */
+  .masthead h1.brand{
+    display:flex; align-items:center; gap:9px;
     font-family:var(--disp); font-weight:900; font-size:21px;
     line-height:1.05; letter-spacing:-.015em;
   }
+  .mark{width:30px; height:30px; flex:none; display:block; overflow:visible}
+  .mark .m-tile{fill:var(--card-2)}
+  .mark .m-grid{stroke:var(--ink); stroke-opacity:.09; stroke-width:1; fill:none}
+  .mark .m-block{fill:var(--r-3)}
+  .mark .m-route{
+    fill:none; stroke:var(--accent); stroke-width:3.2;
+    stroke-linecap:round; stroke-linejoin:round;
+  }
+  .mark .m-start{fill:var(--accent)}
+  .mark .m-home{fill:var(--accent)}
+  .mark .m-door{fill:var(--card-2)}
+  .masthead h1 .wm{display:flex; align-items:baseline; gap:8px; min-width:0}
+  .masthead h1 .wm-t{white-space:nowrap}
+  .masthead h1 .wm b{font-weight:900; color:var(--accent)}
   .masthead h1 em{
-    font-style:normal; color:var(--dim); font-weight:500; font-size:21px;
-    margin-left:6px;
+    font-style:normal; font-family:var(--sans); font-weight:600;
+    font-size:10px; letter-spacing:.1em; color:var(--dim);
+    background:var(--field); border:1px solid var(--rule);
+    border-radius:var(--pill); padding:2px 7px; align-self:center;
+  }
+
+  /* The walk draws itself: dash length is the path's own length, 29 units. */
+  .mark .m-route{stroke-dasharray:29; stroke-dashoffset:0}
+  .mark.go .m-route{animation:mark-draw var(--t-draw) 200ms var(--e-out) backwards}
+  .mark.go .m-start{animation:mark-pop var(--t-slow) 100ms var(--e-spring) backwards}
+  .mark.go .m-block{animation:mark-fade var(--t-slow) 550ms var(--e-out) backwards}
+  .mark.go .m-home,.mark.go .m-door{animation:mark-pop var(--t-slow) 1050ms var(--e-spring) backwards}
+  @keyframes mark-draw{from{stroke-dashoffset:29}}
+  @keyframes mark-pop{from{opacity:0; transform:scale(.4); transform-origin:center}}
+  @keyframes mark-fade{from{opacity:0}}
+  /* The masthead mark replays on hover, so the idea stays available later. */
+  .masthead h1.brand:hover .mark .m-route{animation:mark-draw var(--t-draw) var(--e-out)}
+
+  .bootmark{margin-bottom:4px}
+  .mark.big{width:64px; height:64px}
+  /* While the graph downloads, the walk keeps redrawing: the wait and the
+     brand are the same gesture, so nothing extra is needed to fill it. */
+  .mark.loop .m-route{animation:mark-draw 1500ms ease-in-out infinite}
+
+  @media (prefers-reduced-motion:reduce){
+    .mark.go .m-route,.mark.go .m-start,.mark.go .m-block,
+    .mark.go .m-home,.mark.go .m-door,.mark.loop .m-route,
+    .masthead h1.brand:hover .mark .m-route{animation:none}
   }
   .masthead p{
     font-size:12.5px; color:var(--dim); margin-top:7px; line-height:1.5; max-width:38ch;
@@ -110,7 +223,8 @@
   .tab{
     flex:1; padding:7px 6px; text-align:center; cursor:pointer;
     font-size:12.5px; font-weight:500; color:var(--dim);
-    border-radius:var(--pill); user-select:none; transition:background .12s, color .12s;
+    border-radius:var(--pill); user-select:none;
+    transition:background var(--t-fast), color var(--t-fast);
   }
   .tab:hover{color:var(--ink); background:var(--card)}
   .tab.on{background:var(--accent); color:var(--paper); font-weight:600}
@@ -172,7 +286,7 @@
   }
   .icon-btn:hover{background:var(--card-2); color:var(--accent)}
   .icon-btn:disabled{color:var(--faint); cursor:default; background:none}
-  .icon-btn.busy svg{animation:spin 1s linear infinite; transform-origin:50% 50%}
+  .icon-btn.busy svg{animation:spin 900ms linear infinite; transform-origin:50% 50%}
   @keyframes spin{to{transform:rotate(360deg)}}
   @media (prefers-reduced-motion:reduce){.icon-btn.busy svg{animation:none; opacity:.5}}
   .icon-btn svg{width:16px; height:16px; display:block}
@@ -223,7 +337,8 @@
   .seg div{
     flex:1; text-align:center; padding:7px 4px; cursor:pointer;
     font-size:12px; color:var(--dim); user-select:none;
-    border-radius:var(--r-sm); transition:background .12s, color .12s;
+    border-radius:var(--r-sm);
+    transition:background var(--t-fast), color var(--t-fast);
   }
   .seg div:hover{background:var(--card-2); color:var(--ink)}
   .seg div.on{background:var(--accent); color:var(--paper); box-shadow:var(--sh-1)}
@@ -282,7 +397,7 @@
     gap:0 12px; align-items:center;
     padding:11px 13px; cursor:pointer; background:var(--field);
     border:1px solid var(--rule); border-radius:var(--r-md);
-    transition:border-color .12s, background .12s;
+    transition:border-color var(--t-fast), background var(--t-fast);
   }
   .rc:hover{background:var(--card-2); border-color:var(--rule-2)}
   /* Selected reads as selected without repainting the whole card: the old
@@ -342,7 +457,7 @@
   details.fold > summary::after{
     content:''; width:7px; height:7px; flex:none;
     border-right:2px solid currentColor; border-bottom:2px solid currentColor;
-    transform:rotate(45deg) translate(-2px,-2px); transition:transform .15s;
+    transform:rotate(45deg) translate(-2px,-2px); transition:transform var(--t-fast);
   }
   details.fold[open] > summary::after{transform:rotate(-135deg) translate(-2px,-2px)}
   details.fold[open] > summary{border-bottom:1px solid var(--rule); color:var(--ink)}
@@ -578,7 +693,7 @@
       height:var(--sheet-peek); max-height:88dvh;
       border-radius:var(--r-xl) var(--r-xl) 0 0;
       border-bottom:none; border-left:none; border-right:none;
-      transition:height .3s cubic-bezier(.32,.72,0,1); will-change:height;
+      transition:height var(--t-slow) var(--e-sheet); will-change:height;
     }
     #side.dragging{transition:none}
     #side.half{height:56dvh}
@@ -617,7 +732,8 @@
   #tour-spot{
     position:absolute; border-radius:var(--r-md); border:2px solid var(--accent);
     box-shadow:0 0 0 9999px rgba(3,10,16,.76); pointer-events:none;
-    transition:top .25s ease, left .25s ease, width .25s ease, height .25s ease;
+    transition:top var(--t-base) var(--e-out), left var(--t-base) var(--e-out),
+                width var(--t-base) var(--e-out), height var(--t-base) var(--e-out);
   }
   #tour.nospot #tour-spot{border-color:transparent}
   #tour-pop{
@@ -655,7 +771,11 @@
     html,body{height:auto; overflow:visible; background:#fff; color:#000}
     #app,#tour{display:none!important}
     #printcard{display:block; font-family:Georgia,'Times New Roman',serif; color:#000; max-width:170mm}
-    #printcard .k{font-family:'Courier New',monospace; font-size:9pt; letter-spacing:.12em; text-transform:uppercase; color:#555; margin-bottom:4pt}
+    /* The card is carried in a pocket and handed to a teacher, so it gets the
+       mark too. Ink only: the tile drops away, the block becomes a 35% grey
+       that survives a bad photocopier, and the doorway is knocked out white. */
+    #printcard .k{font-family:'Courier New',monospace; font-size:9pt; letter-spacing:.12em; text-transform:uppercase; color:#555; margin-bottom:4pt; display:flex; align-items:center; gap:5pt}
+    #printcard .pcmark{width:13pt; height:13pt; flex:none}
     #printcard h1{font-size:20pt; margin:0 0 2pt; line-height:1.1}
     #printcard h1 small{display:block; font-size:12pt; font-weight:normal; color:#444; margin-top:2pt}
     #printcard .meta{font-size:10.5pt; color:#333; margin:6pt 0 10pt; line-height:1.5}
@@ -692,7 +812,18 @@
           <span class="on" data-l="en">EN</span><span data-l="es">ES</span>
         </div>
       </div>
-      <h1>Safe Routes<em data-t="h1sub">to School</em></h1>
+      <h1 class="brand">
+        <svg class="mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+          <rect class="m-tile" width="32" height="32" rx="7"/>
+          <g class="m-grid"><path d="M0 22h32M4 0v32"/></g>
+          <rect class="m-block" x="8.5" y="7" width="7" height="7" rx="1.7"/>
+          <path class="m-route" d="M8 26.4V17.8H21V10.4"/>
+          <circle class="m-start" cx="8" cy="26.4" r="2.8"/>
+          <path class="m-home" d="M21 5L25.2 8.6V12.6H16.8V8.6Z"/>
+          <rect class="m-door" x="19.2" y="9.5" width="3.6" height="3.1" rx=".5"/>
+        </svg>
+        <span class="wm"><span class="wm-t">Walk<b>Home</b></span><em data-t="h1sub">LA</em></span>
+      </h1>
       <p data-t="tagline">Walking directions built from where students actually get robbed,
          rather than from distance alone.</p>
       <div id="net"></div>
@@ -1105,6 +1236,15 @@
       <div class="cnt"><span id="lg-count">0</span> <span data-t="lg.drawn">blocks drawn</span></div>
     </div>
     <div id="boot">
+      <div class="bootmark"><svg class="mark big" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+          <rect class="m-tile" width="32" height="32" rx="7"/>
+          <g class="m-grid"><path d="M0 22h32M4 0v32"/></g>
+          <rect class="m-block" x="8.5" y="7" width="7" height="7" rx="1.7"/>
+          <path class="m-route" d="M8 26.4V17.8H21V10.4"/>
+          <circle class="m-start" cx="8" cy="26.4" r="2.8"/>
+          <path class="m-home" d="M21 5L25.2 8.6V12.6H16.8V8.6Z"/>
+          <rect class="m-door" x="19.2" y="9.5" width="3.6" height="3.1" rx=".5"/>
+        </svg></div>
       <p id="boot-msg" data-t="boot.msg">Loading the street network</p>
       <div class="bar"><i id="boot-bar"></i></div>
       <small id="boot-sub">85,634 incidents / 128,534 streetlights</small>

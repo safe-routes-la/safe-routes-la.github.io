@@ -21,6 +21,14 @@ jobs:
 
       - run: pip install -r requirements.txt
 
+      # Pure stdlib and instant, so it runs before anything expensive. Reads the
+      # colour tokens straight out of index.html and fails if any invariant
+      # BRAND.md claims has stopped holding -- contrast floors, a risk ramp that
+      # rises in lightness at every step, and a route hue that cannot be
+      # confused with a risk value.
+      - name: brand invariants still hold
+        run: python tools/brand_check.py
+
       # The shipped graph is committed, so this needs no downloads: it checks
       # the binary parses, that every section ends where the header says, and
       # that A* returns exactly Dijkstra's cost.

@@ -18,7 +18,7 @@ Adrian Erlikhman, Michael `<surname>`
 
 ## Project description
 
-**Safe Routes to School** / https://safe-routes-la.github.io
+**WalkHome LA** / https://safe-routes-la.github.io
 
 Between 2020 and 2024, 1,838 children aged 10 to 18 were robbed on the streets
 of Los Angeles, and 1,026 of those robberies happened during school commute

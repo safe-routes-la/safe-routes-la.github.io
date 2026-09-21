@@ -1,4 +1,4 @@
-/* Spanish for Safe Routes to School.
+/* Spanish for WalkHome LA.
  *
  * `s` holds replacement HTML for every element in index.html that carries a
  * data-t key (English stays in the HTML and is captured before the first
@@ -10,7 +10,7 @@ window.LANGS.es = {
   name: 'Español',
   s: {
     'kicker': 'Los Ángeles / 2020&ndash;2024',
-    'h1sub': 'a la escuela',
+    'h1sub': 'LA',
     'tagline': 'Indicaciones para caminar hechas a partir de dónde asaltan de verdad a los estudiantes, y no solo de la distancia.',
     'tab.route': 'Ruta',
     'tab.school': 'Escuela',
@@ -225,7 +225,7 @@ window.LANGS.es = {
     'boot.sub': '{n} incidentes / {km} km de calles',
     'boot.fail': 'Los archivos de datos no cargaron.',
 
-    'pc.k': 'Tarjeta para caminar / Safe Routes to School',
+    'pc.k': 'Tarjeta para caminar / WalkHome LA',
     'pc.to': 'a {school}',
     'pc.from': 'Desde {from}',
     'pc.when': 'Para la {win} ({clock}), {mode}.',

@@ -1,4 +1,4 @@
-/* Offline copy of Safe Routes to School.
+/* Offline copy of WalkHome LA.
  *
  * After one visit the page, the router and the 5 MB scored graph live on the
  * device, so a student with no data plan can still plan a walk. The basemap
@@ -8,7 +8,7 @@
  *
  * Bump VERSION whenever anything in data/ changes; the old cache is dropped on
  * the next activation. */
-const VERSION = 'srs-2026-09-20b';
+const VERSION = 'wh-2026-09-20b';
 
 const SHELL = [
   './', 'index.html', 'app.js', 'es.js', 'manifest.webmanifest',
