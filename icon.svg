@@ -2,38 +2,16 @@
      aria-label="WalkHome">
   <title>WalkHome</title>
   <!--
-    The product in one glyph: a walk that steps around the block it would
-    otherwise have crossed, and arrives at a door.
-
-    The warm square is a block scoring high at this hour, taken from the same
-    ramp the map uses. The cool line is the route, the same hue as the route on
-    the map and 160 degrees off every step of that ramp, so the two can never be
-    read as the same quantity. The line hugs the block on two sides on purpose:
-    that adjacency is what makes it read as avoidance rather than decoration.
-
-    The roof is kept to 40% of the house and the body is flanked wider than the
-    stroke, because at an even split the silhouette reads as an upward arrow
-    instead of a building. The doorway is punched in the tile colour so the walk
-    visibly ends inside it.
+    A walk that goes around the block it would have crossed and stops at a
+    door. Ink tile, white walk, one warm block from the map's risk ramp. The
+    walk stops short of the house so the two never fuse into an arrow, and the
+    house is wider than the line, with a door, so it reads as a building.
   -->
-  <rect width="32" height="32" rx="7" fill="#0b1a24"/>
-
-  <!-- two cross-streets: enough to say "grid", few enough to stay clean small -->
-  <g stroke="#dfe7ea" stroke-opacity=".09" stroke-width="1">
-    <path d="M0 22h32M4 0v32"/>
-  </g>
-
-  <!-- the block the route refuses -->
-  <rect x="8.5" y="7" width="7" height="7" rx="1.7" fill="#d87321"/>
-
-  <!-- the walk: up, across under the block, then up past its far side -->
-  <path d="M8 26.4V17.8H21V10.4" fill="none" stroke="#35c8ff" stroke-width="3.2"
+  <rect width="32" height="32" rx="7.5" fill="#0e0f12"/>
+  <rect x="7.5" y="8.5" width="9" height="9" rx="2" fill="#dc7426"/>
+  <path d="M7 24.5H22V17.5" fill="none" stroke="#fff" stroke-width="2.6"
         stroke-linecap="round" stroke-linejoin="round"/>
-
-  <!-- where you start -->
-  <circle cx="8" cy="26.4" r="2.8" fill="#35c8ff"/>
-
-  <!-- and home, with the walk ending in the doorway -->
-  <path d="M21 5L25.2 8.6V12.6H16.8V8.6Z" fill="#35c8ff"/>
-  <rect x="19.2" y="9.5" width="3.6" height="3.1" rx="0.5" fill="#0b1a24"/>
+  <circle cx="7" cy="24.5" r="2.6" fill="#fff"/>
+  <path d="M22 5L26.8 9.2V14.2H17.2V9.2Z" fill="#fff"/>
+  <rect x="20.7" y="10.8" width="2.6" height="3.4" rx=".4" fill="#0e0f12"/>
 </svg>
