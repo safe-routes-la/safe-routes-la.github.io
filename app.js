@@ -276,8 +276,8 @@ L.control.zoom({ position: 'bottomleft' }).addTo(map);
  * not the map. */
 const BASEMAPS = {
   esri: {
-    base: 'https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
-    labels: 'https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}',
+    base: 'https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+    labels: 'https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}',
     maxNativeZoom: 16,
     attribution: 'Esri, HERE, Garmin, &copy; OpenStreetMap / crime records: LAPD via data.lacity.org',
   },
@@ -343,11 +343,11 @@ function toast(msg) {
 /* Five flat steps rather than a smooth ramp, so the legend and the map agree
  * and a colour always maps back to a readable band. */
 const BANDS = [
-  { upto: 0.20, hex: '#7d3612' },
-  { upto: 0.40, hex: '#a34a12' },
-  { upto: 0.60, hex: '#d87321' },
-  { upto: 0.80, hex: '#f0a03c' },
-  { upto: 1.01, hex: '#ffd08a' },
+  { upto: 0.20, hex: '#f3d3a6' },
+  { upto: 0.40, hex: '#eba55c' },
+  { upto: 0.60, hex: '#dc7426' },
+  { upto: 0.80, hex: '#b24c14' },
+  { upto: 1.01, hex: '#6e2a0b' },
 ];
 const bandColor = v => (BANDS.find(b => v <= b.upto) || BANDS[4]).hex;
 
@@ -355,10 +355,10 @@ const bandColor = v => (BANDS.find(b => v <= b.upto) || BANDS[4]).hex;
  * ground itself, which is what separates a route line from the risk layer
  * underneath it without adding a third colour. */
 const MAP = {
-  ground: '#071118',
-  accent: '#35c8ff',
-  ink:    '#dfe7ea',
-  ghost:  '#5a7480',
+  ground: '#ffffff',
+  accent: '#2f6feb',
+  ink:    '#0e0f12',
+  ghost:  '#9aa0ab',
 };
 
 const metres = (aLat, aLon, bLat, bLon) =>
@@ -493,7 +493,7 @@ const StreetTiles = L.GridLayer.extend({
     const s0 = se.lat - pad, n0 = nw.lat + pad, w0 = nw.lng - pad, e0 = se.lng + pad;
 
     const ctx = tile.getContext('2d');
-    ctx.strokeStyle = z >= 16 ? '#cfc9b6' : '#d6d0bf';
+    ctx.strokeStyle = z >= 16 ? '#dfe2e7' : '#e6e8ec';
     ctx.lineWidth = z >= 17 ? 3.2 : z >= 16 ? 2.3 : z >= 15 ? 1.5 : z >= 14 ? 1 : 0.7;
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     ctx.beginPath();
@@ -785,7 +785,7 @@ function pin(latlng, color, label) {
 function redrawPins() {
   pinLayer.clearLayers();
   if (S.origin) {
-    pin([S.origin.lat, S.origin.lon], '#211f18', t('pin.start'))
+    pin([S.origin.lat, S.origin.lon], '#0e0f12', t('pin.start'))
       .bindTooltip(t('pin.start'), { direction: 'top', offset: [0, -8] }).addTo(pinLayer);
   }
   if (S.school) {
@@ -1530,7 +1530,7 @@ function report(school) {
     }).addTo(spokeLayer);
   }
   pinLayer.clearLayers();
-  pin([school.lat, school.lon], '#211f18', school.name)
+  pin([school.lat, school.lon], '#0e0f12', school.name)
     .bindTooltip(school.name, { direction: 'top', offset: [0, -8] }).addTo(pinLayer);
 
   S.report = { school, rows, bucket: S.bucket };
