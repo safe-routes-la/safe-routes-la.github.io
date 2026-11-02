@@ -356,7 +356,7 @@ const bandColor = v => (BANDS.find(b => v <= b.upto) || BANDS[4]).hex;
  * underneath it without adding a third colour. */
 const MAP = {
   ground: '#ffffff',
-  accent: '#2f6feb',
+  accent: '#2669ea',
   ink:    '#0e0f12',
   ghost:  '#9aa0ab',
 };
