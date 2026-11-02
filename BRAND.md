@@ -11,6 +11,11 @@ each one is what it is; the stylesheet is the source of truth for *what*.
 
 ## The name
 
+**Since 2 Nov 2026 the page title and the link preview use the original name, Safe Routes to
+School** (Adrian's call: "go back to og title"), so that is what LinkedIn, Slack and search show.
+The lockup inside the app still reads WalkHome LA. The reasoning below is why it was renamed in
+September.
+
 **WalkHome LA.** Not "Safe Routes to School" — that is the name of the federal
 programme this project exists to argue against. From the Method tab:
 

@@ -5,100 +5,61 @@
   image is reproducible rather than a binary nobody can edit.
 
     python3 -m http.server 8000
-    # then screenshot this page at exactly 1200x630, after the webfonts load:
-    #   viewport 1200x630, wait ~2s, save to og-image.png
+    # then screenshot docs/og-source.html at exactly 1200x630, after the
+    # webfonts load (viewport 1200x630, wait ~2s), and save it as og-image.png
 
-  1200x630 is the size Open Graph, Twitter and Slack all crop least badly.
-  Every colour here is a literal copy of a token in index.html; this page
-  cannot import them, so if the palette moves, it moves here too.
+  og-map.jpg is the live map's example walk to LACES, captured at 2x with the
+  panel, tour and legend hidden, so the route and the shaded blocks are the
+  app's own rendering. Recapture it if the map's look changes. The ramp
+  colours are literal copies of --r-1..--r-5 in index.html.
 -->
+<html><head>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,600&family=Public+Sans:wght@500;600;700&family=IBM+Plex+Mono:wght@500&display=block" rel="stylesheet">
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,900&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
-  *{margin:0;padding:0;box-sizing:border-box}
-  body{width:1200px;height:630px;background:#071118;overflow:hidden;position:relative;
-       font-family:'IBM Plex Sans',system-ui,sans-serif;color:#dfe7ea}
-  /* the city under everything, at the weight it has on the real map */
-  #grid{position:absolute;inset:0}
-  #grid line{stroke:#dfe7ea;stroke-opacity:.05;stroke-width:1}
-  #grid .hot{fill:#d87321;fill-opacity:.85}
-  /* The route sits in the empty right-hand quadrant, clear of every line of
-     type: it is the brand mark at billboard scale, not a texture. */
-  #grid .route{stroke:#35c8ff;stroke-width:6;fill:none;
-               stroke-linecap:round;stroke-linejoin:round}
-  #grid .cap{fill:#35c8ff}
-  .wrap{position:relative;z-index:2;height:100%;padding:72px 80px;
-        display:flex;flex-direction:column;justify-content:space-between}
-  .top{display:flex;align-items:center;gap:26px}
-  .top svg{width:104px;height:104px;display:block}
-  h1{font-family:'Fraunces',Georgia,serif;font-weight:900;font-size:76px;
-     letter-spacing:-.022em;line-height:1;font-variation-settings:"opsz" 96}
-  h1 b{color:#35c8ff;font-weight:900}
-  .la{font-size:19px;font-weight:600;letter-spacing:.14em;color:#8aa0a8;
-      border:1px solid rgba(223,231,234,.27);border-radius:999px;padding:7px 16px;
-      align-self:center;margin-left:4px}
-  p.tag{font-size:33px;color:#dfe7ea;line-height:1.3;margin-top:34px;letter-spacing:-.01em}
-  p.tag em{display:block;font-style:normal;color:#8aa0a8;margin-top:6px}
-  .foot{display:flex;align-items:flex-end;justify-content:space-between;gap:40px}
-  .ramp{display:flex;height:11px;width:300px;border-radius:999px;overflow:hidden}
-  .ramp i{flex:1}
-  .rl{display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;
-      font-size:13px;color:#6b8189;margin-top:9px;width:300px;letter-spacing:.04em}
-  .stat{text-align:right;font-family:'IBM Plex Mono',monospace;font-size:15px;
-        color:#6b8189;line-height:1.7;font-variant-numeric:tabular-nums}
-  .stat b{color:#dfe7ea;font-weight:500}
-</style>
-
-<svg id="grid" viewBox="0 0 1200 630" preserveAspectRatio="none">
-  <g>
-    <line x1="0" y1="90" x2="1200" y2="90"/><line x1="0" y1="200" x2="1200" y2="200"/>
-    <line x1="0" y1="310" x2="1200" y2="310"/><line x1="0" y1="420" x2="1200" y2="420"/>
-    <line x1="0" y1="530" x2="1200" y2="530"/>
-    <line x1="120" y1="0" x2="120" y2="630"/><line x1="290" y1="0" x2="290" y2="630"/>
-    <line x1="460" y1="0" x2="460" y2="630"/><line x1="630" y1="0" x2="630" y2="630"/>
-    <line x1="800" y1="0" x2="800" y2="630"/><line x1="970" y1="0" x2="970" y2="630"/>
-    <line x1="1140" y1="0" x2="1140" y2="630"/>
-    <rect class="hot" x="990" y="262" width="68" height="68" rx="14"/>
-    <path class="route" d="M742 462V352H1120V272"/>
-    <circle class="cap" cx="742" cy="462" r="13"/>
-    <!-- same construction as the favicon: shallow roof, flanked body, and a
-         doorway the walk ends inside. Without the doorway it reads as an arrow. -->
-    <path class="cap" d="M1120 222L1158 254V290H1082V254Z"/>
-    <rect x="1108" y="262" width="24" height="28" rx="3" fill="#071118"/>
-  </g>
-</svg>
-
-<div class="wrap">
-  <div>
-    <div class="top">
-      <svg viewBox="0 0 32 32">
-        <rect width="32" height="32" rx="7" fill="#0b1a24"/>
-        <g stroke="#dfe7ea" stroke-opacity=".09" stroke-width="1"><path d="M0 22h32M4 0v32"/></g>
-        <rect x="8.5" y="7" width="7" height="7" rx="1.7" fill="#d87321"/>
-        <path d="M8 26.4V17.8H21V10.4" fill="none" stroke="#35c8ff" stroke-width="3.2"
-              stroke-linecap="round" stroke-linejoin="round"/>
-        <circle cx="8" cy="26.4" r="2.8" fill="#35c8ff"/>
-        <path d="M21 5L25.2 8.6V12.6H16.8V8.6Z" fill="#35c8ff"/>
-        <rect x="19.2" y="9.5" width="3.6" height="3.1" rx="0.5" fill="#0b1a24"/>
-      </svg>
-      <h1>Walk<b>Home</b></h1>
-      <span class="la">LA</span>
-    </div>
-    <p class="tag">The safer way home from school.
-       <em>Not the shortest one.</em></p>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:1200px;height:630px;overflow:hidden}
+body{position:relative;background:#fff;color:#0e0f12;-webkit-font-smoothing:antialiased}
+.map{position:absolute;right:0;top:0;width:680px;height:630px;object-fit:cover;
+     -webkit-mask-image:linear-gradient(90deg,transparent 0,#000 120px)}
+.l{position:absolute;left:68px;top:58px;bottom:52px;width:560px;display:flex;flex-direction:column}
+.top{display:flex;align-items:center;gap:16px}
+.top svg{width:68px;height:68px;display:block}
+.eb{font:500 15px "IBM Plex Mono";letter-spacing:.12em;color:#5b606b}
+h1{font:600 84px/0.98 Newsreader;font-variation-settings:"opsz" 72;letter-spacing:-.022em;margin-top:40px}
+p{font:500 28px/1.3 Newsreader;font-variation-settings:"opsz" 30;color:#3d424c;margin-top:26px;max-width:500px}
+.foot{margin-top:auto}
+.aw{font:700 19px "Public Sans";color:#0e0f12;letter-spacing:-.005em}
+.aw span{color:#2f6feb}
+.url{font:500 15px "IBM Plex Mono";color:#5b606b;margin-top:8px;letter-spacing:.02em}
+.tag{position:absolute;font:700 15px "Public Sans";background:#fff;border:1px solid #d4d7dd;border-radius:6px;padding:5px 10px;
+     box-shadow:0 4px 14px rgba(14,15,18,.12)}
+.key{position:absolute;right:26px;bottom:34px;background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:12px 14px 11px;
+     box-shadow:0 6px 20px rgba(14,15,18,.10);width:214px}
+.ramp{display:flex;height:8px;border-radius:2px;overflow:hidden}.ramp i{flex:1}
+.kl{display:flex;justify-content:space-between;font:600 12px "Public Sans";color:#5b606b;margin-top:6px}
+.kr{display:flex;align-items:center;gap:8px;font:600 13px "Public Sans";color:#0e0f12;margin-top:9px}
+.kr b{width:24px;height:4px;border-radius:2px;background:#2f6feb}
+.osm{position:absolute;right:26px;bottom:12px;font:500 10px "Public Sans";color:rgba(14,15,18,.5)}
+</style></head><body>
+<img class="map" src="og-map.jpg">
+<div class="tag" style="left:658px;top:56px">School</div>
+<div class="tag" style="left:1102px;top:378px">Home</div>
+<div class="l">
+  <div class="top">
+    <svg viewBox="0 0 32 32"><rect width="32" height="32" rx="7.5" fill="#0e0f12"/><rect x="7.5" y="8.5" width="9" height="9" rx="2" fill="#dc7426"/>
+      <path d="M7 24.5H22V17.5" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="7" cy="24.5" r="2.6" fill="#fff"/><path d="M22 5L26.8 9.2V14.2H17.2V9.2Z" fill="#fff"/><rect x="20.7" y="10.8" width="2.6" height="3.4" rx=".4" fill="#0e0f12"/></svg>
+    <div class="eb">LOS ANGELES · 2020–2024</div>
   </div>
-
+  <h1>Safe Routes<br>to School</h1>
+  <p>Walking directions for LA students, scored from 85,634 real crime records.</p>
   <div class="foot">
-    <div>
-      <div class="ramp">
-        <i style="background:#7d3612"></i><i style="background:#a34a12"></i>
-        <i style="background:#d87321"></i><i style="background:#f0a03c"></i>
-        <i style="background:#ffd08a"></i>
-      </div>
-      <div class="rl"><span>calmer</span><span>worst in LA</span></div>
-    </div>
-    <div class="stat">
-      <b>85,634</b> violent-crime records<br>
-      Los Angeles &middot; <b>2020&ndash;2024</b>
-    </div>
+    <div class="aw"><span>3rd internationally</span> · Code for Transportation</div>
+    <div class="url">safe-routes-la.github.io</div>
   </div>
 </div>
+<div class="key"><div class="ramp"><i style="background:#f3d3a6"></i><i style="background:#eba55c"></i><i style="background:#dc7426"></i><i style="background:#b24c14"></i><i style="background:#6e2a0b"></i></div>
+  <div class="kl"><span>calmer</span><span>worst in LA</span></div>
+  <div class="kr"><b></b>The route it picks</div></div>
+<div class="osm">Esri, HERE, Garmin, © OpenStreetMap · LAPD via data.lacity.org</div>
+</body></html>
