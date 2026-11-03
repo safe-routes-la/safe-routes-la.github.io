@@ -41,6 +41,38 @@ or "WALKHOME". The "LA" is a separate lockup element, not part of the word.
 
 ## Colour
 
+### Light theme (current, since the 20 Oct 2026 retheme, #5)
+
+The site moved to a light ground and the tables below this section still
+describe the dark theme it replaced. `tools/brand_check.py` measures the light
+tokens; its output on 2 Nov 2026:
+
+| Token | Value | Measured | Floor |
+|---|---|---|---|
+| `--paper` (ground) | `#f7f8fa` | | |
+| `--ink` | `#0e0f12` | 18.04:1 | 4.5 |
+| `--accent` | `#2669ea` | 4.61:1 | 4.5 |
+| `--dim` | `#5b606b` | 5.93:1 | 4.5 |
+| `--faint` | `#6b707b` | 4.67:1 | 4.5 |
+| `--paper` on `--accent` | | 4.61:1 | 4.5 |
+| ramp L\*, `--r-1`..`--r-5` | `#f3d3a6`..`#6e2a0b` | 86.2, 73.1, 59.7, 45.2, 26.7 | steps of 10 |
+| `--r-1` vs ground | `#f3d3a6` | 1.35:1 | 1.3 |
+
+Two rules changed with the ground, and the check changed with them:
+
+1. **On a light ground the ramp darkens.** Risk reads as distance from the
+   ground, so L\* now *falls* at every step (it rose on the dark ground). The
+   step floor of 10 L\* is unchanged.
+2. **The calmest band's floor is 1.3:1, not 2:1.** A calm block is a pale tan
+   line on a pale map. Reaching 2:1 would mean darkening the whole ramp. The
+   band measured 1.35:1 when the light theme shipped, and the floor sits just
+   under that so it can't get any paler unless someone decides to.
+
+`--accent` was `#2f6feb` at 4.30:1, below AA for blue text and for white text
+on blue buttons. It moved to `#2669ea` (same hue, a little darker) on 2 Nov.
+
+### Dark theme (history, until 20 Oct 2026)
+
 Ground is `--paper` `#071118` — a cool near-black, so the risk layer is the only
 bright thing on screen. A quiet block can fall nearly to the background and a
 bad one can glow; that range is what the old cream ground could not give.

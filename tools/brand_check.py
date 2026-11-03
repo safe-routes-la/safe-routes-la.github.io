@@ -9,12 +9,14 @@ of the properties BRAND.md claims have stopped holding.
 
 What it enforces, and why each one matters:
 
-  * The risk ramp rises in L* at every step. Non-monotone lightness makes two
+  * The risk ramp moves away from the ground in L* at every step: it rises on a
+    dark ground and falls on a light one. Non-monotone lightness makes two
     different risk values look equally severe.
   * No step smaller than MIN_STEP. Below that, adjacent bands stop being
     separable -- including without colour vision, since the ramp is designed to
     be readable by lightness alone.
   * The calmest band still clears the ground. It is meant to recede, not vanish.
+    The floor depends on the ground: see MIN_CALM_LIGHT.
   * Body text clears WCAG AA. --faint shipped at 4.10:1 once, on every note in
     the panel; that is what this check exists to stop happening again.
   * The route hue stays far from every step of the ramp. This is the only rule
@@ -30,7 +32,12 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 CSS = ROOT / "index.html"
 
 MIN_STEP = 10.0          # L*, separability of adjacent bands
-MIN_CALM = 2.0           # calmest band vs ground; recede, do not vanish
+MIN_CALM = 2.0           # calmest band vs a dark ground; recede, do not vanish
+# On the light ground (since the 20 Oct retheme) a calm block is a pale tan line
+# on a pale map, and a 2:1 floor would push the whole ramp darker. The calmest
+# band measured 1.35:1 when that theme shipped; the floor sits just under it so
+# the band cannot get any paler without someone deciding to.
+MIN_CALM_LIGHT = 1.3
 MIN_HUE_GAP = 120.0      # degrees between the route and every risk step
 AA_NORMAL = 4.5          # WCAG 2.1 AA, normal-size text
 AA_LARGE = 3.0
@@ -114,15 +121,21 @@ def main() -> int:
           f"{r:5.2f}:1  (need {AA_NORMAL})")
 
     print("\nrisk ramp")
+    # Risk reads as distance from the ground: brighter on a dark map, darker on
+    # a light one. Measure every step in that direction.
+    light = lstar(ground) > 50
     ls = [lstar(c) for c in ramp]
     steps = [ls[i + 1] - ls[i] for i in range(4)]
-    check(all(s > 0 for s in steps), "L* rises at every step",
+    away = [-s if light else s for s in steps]
+    check(all(a > 0 for a in away),
+          f"L* {'falls' if light else 'rises'} at every step (away from ground)",
           " -> ".join(f"{v:.1f}" for v in ls))
-    check(min(steps) >= MIN_STEP, "no step below the separability floor",
-          f"min {min(steps):.1f}  (need {MIN_STEP})")
+    check(min(away) >= MIN_STEP, "no step below the separability floor",
+          f"min {min(away):.1f}  (need {MIN_STEP})")
+    floor = MIN_CALM_LIGHT if light else MIN_CALM
     calm = contrast(ramp[0], ground)
-    check(calm >= MIN_CALM, "calmest band still clears the ground",
-          f"{ramp[0]}  {calm:5.2f}:1  (need {MIN_CALM})")
+    check(calm >= floor, "calmest band still clears the ground",
+          f"{ramp[0]}  {calm:5.2f}:1  (need {floor})")
     # The ramp must be one family: a hue jump would reintroduce categories.
     hues = [hue(c) for c in ramp]
     spread = max(hue_gap(h, hues[0]) for h in hues)
