@@ -45,7 +45,7 @@ window.LANGS.es = {
     'go': 'Comparar rutas',
 
     'cards.h': 'Tres opciones',
-    'cards.note': 'La exposición es el riesgo promedio de las cuadras que caminas, de 0 a 100, comparado con todas las cuadras de Los Ángeles a esa hora. Menos es más tranquilo.',
+    'cards.note': 'Cada cuadra recibe de 0 a 100 frente a todas las cuadras de Los Ángeles a esa hora. La exposición suma esas puntuaciones a lo largo de la caminata: 100 m en una cuadra con 50 suman 0.5. Menos es más tranquilo.',
     'why.h': 'Por qué esta ruta',
     'hours.h': 'Misma ruta, <b>otra hora</b>',
     'turns.h': 'Calle por calle',
@@ -175,7 +175,7 @@ window.LANGS.es = {
 
     'card.less': '{cut}% menos exposición',
     'card.min': '{n} min',
-    'card.sub': '{d} a pie / {e}',
+    'card.sub': '{d} a pie<br>exposición {e}',
 
     'why.same': 'El camino más corto aquí es también el más tranquilo que el modelo encuentra, así que no hay nada que intercambiar.',
     'why.skips': 'Evita <b>{len}</b> de <span class="st">{st}</span>, que califica <b>{n}</b> a esta hora.',
@@ -233,7 +233,7 @@ window.LANGS.es = {
     'pc.opt': 'Opción', 'pc.time': 'Tiempo', 'pc.walk': 'A pie', 'pc.exp': 'Exposición',
     'pc.turns': 'Calle por calle', 'pc.hours': 'Misma ruta, otra hora',
     'pc.open': 'Abre este viaje en un teléfono',
-    'pc.foot': 'Las puntuaciones van de 0 a 100 frente a todas las cuadras de Los Ángeles a esa hora; menos es más tranquilo. Es una segunda opinión sobre una caminata, no una garantía. Datos: LAPD 2020 a 2024, LA Metro, OpenStreetMap.',
+    'pc.foot': 'Cada cuadra recibe de 0 a 100 frente a todas las cuadras de Los Ángeles a esa hora. La exposición suma esas puntuaciones a lo largo de la ruta: 100 m en una cuadra con 50 suman 0.5. Menos es más tranquilo. Es una segunda opinión sobre una caminata, no una garantía. Datos: LAPD 2020 a 2024, LA Metro, OpenStreetMap.',
     'pc.printed': 'Impreso el {date}',
 
     'open.note': 'A Google se le envían algunos puntos de paso para que su '
