@@ -1512,8 +1512,6 @@ function report(school) {
   if (dst < 0) { toast(t('toast.rcnostreet')); return; }
   const R = 1200;
   const rows = [];
-  spokeLayer.clearLayers();
-  routeLayer.clearLayers();
 
   for (let k = 0; k < N_COMPASS; k++) {
     const th = k * 2 * Math.PI / N_COMPASS;
@@ -1531,6 +1529,19 @@ function report(school) {
 
   rows.sort((a, b) => b.r.score - a.r.score);
 
+  S.report = { school, rows, bucket: S.bucket };
+  drawReport();
+  renderReport();
+  map.fitBounds(L.featureGroup(spokeLayer.getLayers()).getBounds().pad(0.08),
+                { animate: false });
+}
+
+/* The report's sixteen approaches replace the trip on the map while the
+ * School tab is open; showTab() swaps them back. */
+function drawReport() {
+  const { school, rows } = S.report;
+  spokeLayer.clearLayers();
+  routeLayer.clearLayers();
   for (const row of rows) {
     L.polyline(routeLatLngs(row.r), {
       color: bandColor(row.r.score / 100), weight: 3.5, opacity: .9,
@@ -1540,11 +1551,6 @@ function report(school) {
   pinLayer.clearLayers();
   pin([school.lat, school.lon], '#0e0f12', school.name)
     .bindTooltip(school.name, { direction: 'top', offset: [0, -8] }).addTo(pinLayer);
-
-  S.report = { school, rows, bucket: S.bucket };
-  renderReport();
-  map.fitBounds(L.featureGroup(spokeLayer.getLayers()).getBounds().pad(0.08),
-                { animate: false });
 }
 
 function renderReport() {
@@ -1863,14 +1869,23 @@ function setWindow(b, recompute = true) {
   if (recompute && S.origin && S.school) compute(false);
 }
 
+/* The School tab draws its report over the map and clears the trip, so
+ * coming back to Route puts the trip back: the panel still lists it, and a
+ * map that no longer shows it reads as a lost result. */
+function showTab(p) {
+  if (document.body.dataset.tab === p) return;
+  document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x.dataset.p === p));
+  document.querySelectorAll('.pane').forEach(x => x.classList.toggle('on', x.id === 'p-' + p));
+  document.body.dataset.tab = p;
+  if (p === 'school' && S.report) { drawReport(); return; }
+  spokeLayer.clearLayers();
+  redrawPins();
+  if (S.routes) drawSelection(S.routes[S.pick]);
+}
+
 document.querySelector('.tabs').addEventListener('click', e => {
   const t = e.target.closest('.tab'); if (!t) return;
-  document.querySelectorAll('.tab').forEach(x => x.classList.remove('on'));
-  document.querySelectorAll('.pane').forEach(x => x.classList.remove('on'));
-  t.classList.add('on');
-  $('p-' + t.dataset.p).classList.add('on');
-  document.body.dataset.tab = t.dataset.p;
-  if (t.dataset.p !== 'school') spokeLayer.clearLayers();
+  showTab(t.dataset.p);
 });
 
 $('when').addEventListener('click', e => {
@@ -1892,6 +1907,9 @@ $('cards').addEventListener('click', e => {
 });
 
 map.on('click', ev => {
+  // A click on the map always sets where the walk starts, so the panel has
+  // to be showing the walk.
+  showTab('route');
   S.origin = { lat: ev.latlng.lat, lon: ev.latlng.lng };
   $('origin').value = `${S.origin.lat.toFixed(5)}, ${S.origin.lon.toFixed(5)}`;
   redrawPins();
