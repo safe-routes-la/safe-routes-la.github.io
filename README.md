@@ -460,7 +460,11 @@ pipeline/
     smoke.py              end-to-end build on a small synthetic city
     *_results.md          what those two scripts last found
 docs/FORMAT_V3.md         proposed per-block confidence byte, not yet taken
-.github/workflows/        validate.py, the smoke test, and both eval controls
+tools/
+  brand_check.py          the colour rules in BRAND.md, measured
+  i18n_check.mjs          every string on the page has a Spanish version
+.github/workflows/        both checks in tools/, validate.py, the smoke test,
+                          and both eval controls
 ```
 
 ## What this cannot tell you

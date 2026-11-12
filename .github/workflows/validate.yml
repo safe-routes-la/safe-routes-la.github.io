@@ -29,6 +29,19 @@ jobs:
       - name: brand invariants still hold
         run: python tools/brand_check.py
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      # The site has no build step, so nothing else would catch a syntax error
+      # before it reached visitors. The second command fails if any string the
+      # page shows is missing from a language pack or loses a {placeholder};
+      # the page falls back to English silently, so only this notices.
+      - name: front end parses and every string is translated
+        run: |
+          node --check app.js && node --check es.js && node --check sw.js
+          node tools/i18n_check.mjs
+
       # The shipped graph is committed, so this needs no downloads: it checks
       # the binary parses, that every section ends where the header says, and
       # that A* returns exactly Dijkstra's cost.
