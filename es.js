@@ -177,6 +177,7 @@ window.LANGS.es = {
 
     'cards.n1': 'Una opción', 'cards.n2': 'Dos opciones', 'cards.n3': 'Tres opciones',
     'cards.n4': 'Cuatro opciones',
+    'long.walk': 'Son {d} a pie. Un viaje en autobús o tren puede tener menos exposición: <button type="button" class="link" data-go="bus">compara autobús y tren</button>.',
     'card.less': '{cut}% menos exposición',
     'card.min': '{n} min',
     'card.sub': '{d} a pie<br>exposición {e}',
