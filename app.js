@@ -88,6 +88,8 @@ const EN = {
 
   'cards.n1': 'One option', 'cards.n2': 'Two options', 'cards.n3': 'Three options',
   'cards.n4': 'Four options',
+  'long.walk': 'That is a {d} walk. A bus or rail trip may carry less exposure: '
+    + '<button type="button" class="link" data-go="bus">compare bus and rail</button>.',
   'card.less': '{cut}% less exposure',
   'card.min': '{n} min',
   'card.sub': '{d} walk<br>exposure {e}',
@@ -814,6 +816,7 @@ function redrawPins() {
 const WAIT_M_PER_MIN = 80;
 const MAX_STOP_WALK_M = 900;     // how far a student will walk to a stop
 const RIDE_CANDIDATES = 14;      // itineraries worth spending an A* run on
+const LONG_WALK_M = 3000;        // about 38 minutes on foot: worth suggesting a ride
 
 const T = { stops: null, patterns: null, names: null, stopPat: null,
             node: null, grid: null, CELL: 0.006 };
@@ -1220,6 +1223,13 @@ function renderCards() {
   // Foot mode drops options that add nothing, and bus mode adds the walk, so
   // the heading counts what is actually there.
   setDyn($('cards-h'), `cards.n${Math.min(4, S.routes.length)}`);
+  // A long walk is where riding part of the way changes the answer most, and
+  // the switch for it sits above the fold, so point at it from here.
+  const lw = $('long-walk'), short = S.routes.find(isShortest);
+  if (S.mode === 'foot' && T.stops && short && short.r.dist > LONG_WALK_M) {
+    setDyn(lw, 'long.walk', { d: fmtM(short.r.dist) });
+    lw.style.display = '';
+  } else lw.style.display = 'none';
   $('r-cards').style.display = '';
 }
 
@@ -1972,6 +1982,10 @@ $('mode').addEventListener('click', e => {
   [...$('mode').children].forEach(c => c.classList.toggle('on', c === d));
   S.pick = 0;
   if (S.origin && S.school) compute(false);
+});
+
+$('long-walk').addEventListener('click', e => {
+  if (e.target.closest('[data-go="bus"]')) document.querySelector('#mode div[data-m="bus"]').click();
 });
 
 $('cards').addEventListener('click', e => {
