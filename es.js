@@ -11,6 +11,8 @@ window.LANGS.es = {
   s: {
     'kicker': 'Los Ángeles / 2020&ndash;2024',
     'tour.pill': 'Guía',
+    'tour.help': 'Muéstrame cómo',
+    'tour.close': 'Cerrar',
     'h1sub': 'LA',
     'tagline': 'Indicaciones para caminar hechas a partir de dónde asaltan de verdad a los estudiantes, y no solo de la distancia.',
     'tab.route': 'Ruta',
