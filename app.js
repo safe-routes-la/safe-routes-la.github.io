@@ -1632,6 +1632,10 @@ function renderReport() {
 function attachAC(inputId, listId, search, onPick, opts = {}) {
   const input = $(inputId), list = $(listId);
   let items = [], sel = -1, timer = null, inflight = null;
+  // What the visitor last typed, until they pick something; and the query
+  // the current `items` answer.
+  let typed = null, itemsFor = null;
+  const pick = it => { typed = null; onPick(it); close(); };
 
   const close = () => { list.classList.remove('on'); sel = -1; };
   const note = (cls, msg) => {
@@ -1648,6 +1652,7 @@ function attachAC(inputId, listId, search, onPick, opts = {}) {
   };
 
   input.addEventListener('input', () => {
+    typed = input.value;
     clearTimeout(timer);
     // A keystroke cancels the lookup already in the air, so results never
     // arrive out of order and a remote geocoder sees one request per pause.
@@ -1668,27 +1673,55 @@ function attachAC(inputId, listId, search, onPick, opts = {}) {
         if (inflight === ctl) inflight = null;
       }
       if (ctl.signal.aborted) return;
+      itemsFor = q;
       if (!items.length) { note('none', t(opts.none || 'ac.none')); return; }
       sel = -1; render();
     }, opts.remote ? 420 : 200);
   });
 
   input.addEventListener('keydown', e => {
+    // Enter before the suggestions have arrived looks the text up at once.
+    if (e.key === 'Enter' && !(list.classList.contains('on') && items.length)) {
+      e.preventDefault(); settle(); return;
+    }
     if (!list.classList.contains('on') || !items.length) return;
     if (e.key === 'ArrowDown') { sel = Math.min(items.length - 1, sel + 1); render(); e.preventDefault(); }
     else if (e.key === 'ArrowUp') { sel = Math.max(0, sel - 1); render(); e.preventDefault(); }
     else if (e.key === 'Enter') {
       e.preventDefault();
-      onPick(items[sel < 0 ? 0 : sel]); close();
+      pick(items[sel < 0 ? 0 : sel]);
     } else if (e.key === 'Escape') close();
   });
 
   list.addEventListener('mousedown', e => {
     const d = e.target.closest('div[data-i]'); if (!d) return;
     e.preventDefault();
-    onPick(items[+d.dataset.i]); close();
+    pick(items[+d.dataset.i]);
   });
   input.addEventListener('blur', () => setTimeout(close, 140));
+
+  /* For the button next to the field. Text typed but never picked from the
+   * list used to be ignored: the button re-ran the previous trip while the
+   * field showed the new address. Take the first match instead, as Enter
+   * does. Resolves true if it picked one, 'none' if nothing matched, and
+   * false if there was nothing new to look up. */
+  async function settle() {
+    if (typed == null || input.value !== typed) return false;
+    const q = input.value.trim();
+    if (q.length < 2) return false;
+    clearTimeout(timer);
+    if (inflight) { inflight.abort(); inflight = null; }
+    let found = itemsFor === q ? items : null;
+    if (!found) {
+      try { found = (await search(q, new AbortController().signal)) || []; }
+      catch (e) { toast(e.offline ? t('ac.offline') : t(opts.none || 'ac.none')); return 'none'; }
+    }
+    if (input.value !== typed) return false;      // typing resumed meanwhile
+    if (!found.length) { toast(t(opts.none || 'ac.none')); return 'none'; }
+    pick(found[0]);
+    return true;
+  }
+  return { settle };
 }
 
 const searchSchools = q => {
@@ -2006,7 +2039,22 @@ map.on('click', ev => {
   if (S.school) compute();
 });
 
-$('go').addEventListener('click', () => compute());
+/* Both buttons work from typed text as well as from a picked suggestion, so
+ * they are enabled as soon as their fields hold something. */
+const updateGo = () => {
+  $('go').disabled = !($('origin').value.trim() && $('school').value.trim());
+};
+$('origin').addEventListener('input', updateGo);
+$('school').addEventListener('input', updateGo);
+$('rc-school').addEventListener('input', () => { $('rc-run').disabled = !$('rc-school').value.trim(); });
+
+$('go').addEventListener('click', async () => {
+  if (!S.ac) return;
+  const a = await S.ac.origin.settle(), b = await S.ac.school.settle();
+  if (a === 'none' || b === 'none') return;
+  // A pick plans the trip itself once both ends are known.
+  if (a !== true && b !== true && S.origin && S.school) compute();
+});
 
 $('share').addEventListener('click', async () => {
   writeUrl();
@@ -2219,7 +2267,8 @@ $('t-schools').addEventListener('click', e => {
   } else map.removeLayer(schoolLayer);
 });
 
-$('rc-run').addEventListener('click', () => {
+$('rc-run').addEventListener('click', async () => {
+  if (S.ac && await S.ac.rc.settle() === 'none') return;
   if (S.rcSchool) report(S.rcSchool);
 });
 
@@ -2325,7 +2374,8 @@ async function boot() {
   buildIndex();
   new StreetTiles({ zIndex: 0, minZoom: 12, updateWhenIdle: true }).addTo(map);
 
-  attachAC('school', 'ac-school', q => searchSchools(q), it => {
+  S.ac = {};
+  S.ac.school = attachAC('school', 'ac-school', q => searchSchools(q), it => {
     S.school = it.school;
     $('school').value = it.school.name;
     redrawPins();
@@ -2333,7 +2383,7 @@ async function boot() {
     if (S.origin) compute(); else map.setView([it.school.lat, it.school.lon], 15);
   }, { none: 'ac.noschool' });
 
-  attachAC('origin', 'ac-origin', searchPlaces, it => {
+  S.ac.origin = attachAC('origin', 'ac-origin', searchPlaces, it => {
     S.origin = { lat: it.lat, lon: it.lon };
     $('origin').value = it.label;
     redrawPins();
@@ -2341,7 +2391,7 @@ async function boot() {
     if (S.school) compute(); else map.setView([it.lat, it.lon], 15);
   }, { remote: true });
 
-  attachAC('rc-school', 'ac-rc', q => searchSchools(q), it => {
+  S.ac.rc = attachAC('rc-school', 'ac-rc', q => searchSchools(q), it => {
     S.rcSchool = it.school;
     $('rc-school').value = it.school.name;
     $('rc-run').disabled = false;
