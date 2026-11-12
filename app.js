@@ -964,10 +964,6 @@ function transitOptions(origin, school, bucket, lambda) {
   };
   const srcNode = nearestNode(origin.lat, origin.lon);
   const dstNode = nearestNode(school.lat, school.lon);
-  const stopRiskAt = si => {
-    const e = firstEdgeAt(stopNode(si));
-    return e >= 0 ? risk(e, bucket) : 0.3;
-  };
 
   const out = [];
   const seen = new Set();
@@ -985,12 +981,7 @@ function transitOptions(origin, school, bucket, lambda) {
     const legB = an === dstNode ? null : legRoute(an, dstNode);
     if ((bn !== srcNode && !legA) || (an !== dstNode && !legB)) continue;
 
-    let waitExp = 0;
-    waitExp += stopRiskAt(bStop) * WAIT_M_PER_MIN * first.w;
-    if (c.legs.length > 1) {
-      waitExp += stopRiskAt(c.xfer.to) * WAIT_M_PER_MIN * last.w;
-      waitExp += stopRiskAt(c.xfer.from) * c.xfer.metres;   // the transfer walk
-    }
+    const waitExp = stopExposure(c.legs, c.xfer, bucket);
     const walkDist = (legA ? legA.dist : 0) + (legB ? legB.dist : 0)
                    + (c.xfer ? c.xfer.metres : 0);
     const exposure = (legA ? legA.exposure : 0) + (legB ? legB.exposure : 0) + waitExp;
@@ -999,7 +990,7 @@ function transitOptions(origin, school, bucket, lambda) {
                   + c.waitMin + c.rideMin;
     out.push({
       kind: 'transit', legs: c.legs, xfer: c.xfer, bStop, aStop, legA, legB,
-      rideMin: c.rideMin, waitMin: c.waitMin, stopRisk: stopRiskAt(bStop),
+      rideMin: c.rideMin, waitMin: c.waitMin,
       dist: walkDist, exposure, timeMin,
       routeLabel: c.legs.map(l => T.patterns[l.pi].r).join(' then '),
       routeNames: c.legs.map(l => T.patterns[l.pi].r),
@@ -1019,6 +1010,26 @@ function transitOptions(origin, school, bucket, lambda) {
 
 function firstEdgeAt(node) {
   return S.head[node] < S.head[node + 1] ? S.eidx[S.head[node]] : -1;
+}
+
+/* Risk of the block a stop stands on, in window b. */
+function stopRisk(si, b) {
+  const e = firstEdgeAt(stopNode(si));
+  return e >= 0 ? risk(e, b) : 0.3;
+}
+
+/* Exposure spent at stops rather than on a walk: waiting to board, waiting
+ * to change, and the short walk between the two stops of a change. The card,
+ * "Same route, different hour" and the printed card all use this, so the
+ * number for the selected hour is the same in all three. */
+function stopExposure(legs, xfer, b) {
+  const first = T.patterns[legs[0].pi], last = T.patterns[legs[legs.length - 1].pi];
+  let e = stopRisk(first.s[legs[0].posA], b) * WAIT_M_PER_MIN * first.w;
+  if (legs.length > 1) {
+    e += stopRisk(xfer.to, b) * WAIT_M_PER_MIN * last.w;
+    e += stopRisk(xfer.from, b) * xfer.metres;
+  }
+  return e;
 }
 
 /* Exposure in comparable units across modes: total risk-metres over 100, so a
@@ -1205,11 +1216,9 @@ function routeExposureAt(r, b) {
 
 function exposureAt(o, b) {
   if (o.kind !== 'transit') return routeExposureAt(o.r, b);
-  const wr = firstEdgeAt(stopNode(o.bStop));
-  const sr = wr >= 0 ? risk(wr, b) : o.stopRisk;
   return (o.legA ? routeExposureAt(o.legA, b) : 0)
        + (o.legB ? routeExposureAt(o.legB, b) : 0)
-       + sr * WAIT_M_PER_MIN * o.waitMin;
+       + stopExposure(o.legs, o.xfer, b);
 }
 
 function drawWalk(r, colour, weight) {
@@ -1322,13 +1331,13 @@ function renderTurns(o) {
       const pat = T.patterns[leg.pi];
       const board = pat.s[leg.posA], off = pat.s[leg.posB];
       html += turnRow(t('turn.board', { r: pat.r, stop: stopName(board) }),
-                      t('turn.wait', { n: Math.round(pat.w) }), o.stopRisk);
+                      t('turn.wait', { n: Math.round(pat.w) }), stopRisk(board, S.bucket));
       html += turnRow(t('turn.ride', { n: leg.posB - leg.posA }),
                       t('card.min', { n: Math.round(Math.max(0, pat.t[leg.posB] - pat.t[leg.posA]) / 60) }), 0);
-      html += turnRow(t('turn.off', { stop: stopName(off) }), '', o.stopRisk);
+      html += turnRow(t('turn.off', { stop: stopName(off) }), '', stopRisk(off, S.bucket));
       if (k === 0 && o.xfer && o.xfer.metres > 0) {
         html += turnRow(t('turn.xfer', { stop: stopName(o.xfer.to) }),
-                        fmtM(o.xfer.metres), o.stopRisk);
+                        fmtM(o.xfer.metres), stopRisk(o.xfer.from, S.bucket));
       }
     });
     if (o.legB) {
@@ -1929,12 +1938,13 @@ function buildPrintCard() {
     o.legs.forEach((leg, k) => {
       const pat = T.patterns[leg.pi];
       turns += row(t('turn.board', { r: pat.r, stop: stopName(pat.s[leg.posA]) }),
-                   t('turn.wait', { n: Math.round(pat.w) }), o.stopRisk);
+                   t('turn.wait', { n: Math.round(pat.w) }), stopRisk(pat.s[leg.posA], b));
       turns += row(t('turn.ride', { n: leg.posB - leg.posA }),
                    t('card.min', { n: Math.round(Math.max(0, pat.t[leg.posB] - pat.t[leg.posA]) / 60) }), null);
-      turns += row(t('turn.off', { stop: stopName(pat.s[leg.posB]) }), '', o.stopRisk);
+      turns += row(t('turn.off', { stop: stopName(pat.s[leg.posB]) }), '', stopRisk(pat.s[leg.posB], b));
       if (k === 0 && o.xfer && o.xfer.metres > 0) {
-        turns += row(t('turn.xfer', { stop: stopName(o.xfer.to) }), fmtM(o.xfer.metres), o.stopRisk);
+        turns += row(t('turn.xfer', { stop: stopName(o.xfer.to) }), fmtM(o.xfer.metres),
+                     stopRisk(o.xfer.from, b));
       }
     });
     if (o.legB) turns += turnList(o.legB, b).map(x => row(x.label, fmtM(x.len), x.worst)).join('');
