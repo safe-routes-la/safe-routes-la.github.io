@@ -134,7 +134,8 @@
   :focus-visible{outline:2px solid var(--accent); outline-offset:2px}
   /* On a filled accent button the accent ring disappears into the fill. */
   button.act:focus-visible, button.tbtn:not(.quiet):focus-visible,
-  .tab.on:focus-visible{outline-color:var(--ink)}
+  .tab.on:focus-visible, .seg div.on:focus-visible,
+  #lang span.on:focus-visible{outline-color:var(--ink)}
 
   /* The map is the page. Everything else floats over it, the way every
      mapping app people already know is built. */
@@ -824,8 +825,8 @@
       <div class="mast-tools">
         <button id="help" type="button" data-tt="tour.help" title="Show me around"
                 aria-label="Show me around"><i aria-hidden="true">?</i><span data-t="tour.pill">Tour</span></button>
-        <div id="lang" title="Language / Idioma">
-          <span class="on" data-l="en">EN</span><span data-l="es">ES</span>
+        <div id="lang" title="Language / Idioma" role="group" aria-label="Language / Idioma">
+          <span class="on" data-l="en" role="button" tabindex="0" aria-pressed="true" aria-label="English" lang="en">EN</span><span data-l="es" role="button" tabindex="0" aria-pressed="false" aria-label="Español" lang="es">ES</span>
         </div>
       </div>
       <h1 class="brand">
@@ -844,15 +845,15 @@
       <div id="net"></div>
     </div>
 
-    <div class="tabs">
-      <div class="tab on" data-p="route" data-t="tab.route">Route</div>
-      <div class="tab" data-p="school" data-t="tab.school">School</div>
-      <div class="tab" data-p="method" data-t="tab.method">Method</div>
+    <div class="tabs" role="tablist">
+      <div class="tab on" data-p="route" data-t="tab.route" role="tab" tabindex="0" aria-selected="true" aria-controls="p-route">Route</div>
+      <div class="tab" data-p="school" data-t="tab.school" role="tab" tabindex="0" aria-selected="false" aria-controls="p-school">School</div>
+      <div class="tab" data-p="method" data-t="tab.method" role="tab" tabindex="0" aria-selected="false" aria-controls="p-method">Method</div>
     </div>
 
     <div class="panes">
       <!-- ======================================================= ROUTE -->
-      <div class="pane on" id="p-route">
+      <div class="pane on" id="p-route" role="tabpanel">
 
         <div class="sec" id="intro">
           <h2 data-t="intro.h">How to use this</h2>
@@ -893,20 +894,20 @@
         </div>
 
         <div class="sec">
-          <h2 data-t="when.h">Time of day</h2>
-          <div class="seg" id="when">
-            <div data-b="0"><b data-t="when.0">Morning</b><small data-t="when.0s">5am to 10am</small></div>
-            <div data-b="1"><b data-t="when.1">Afternoon</b><small data-t="when.1s">10am to 5pm</small></div>
-            <div data-b="2"><b data-t="when.2">Evening</b><small data-t="when.2s">5pm to 5am</small></div>
+          <h2 id="when-h" data-t="when.h">Time of day</h2>
+          <div class="seg" id="when" role="radiogroup" aria-labelledby="when-h">
+            <div data-b="0" role="radio" tabindex="0" aria-checked="false"><b data-t="when.0">Morning</b><small data-t="when.0s">5am to 10am</small></div>
+            <div data-b="1" role="radio" tabindex="0" aria-checked="false"><b data-t="when.1">Afternoon</b><small data-t="when.1s">10am to 5pm</small></div>
+            <div data-b="2" role="radio" tabindex="0" aria-checked="false"><b data-t="when.2">Evening</b><small data-t="when.2s">5pm to 5am</small></div>
           </div>
           <p class="note" id="when-note"></p>
         </div>
 
         <div class="sec">
-          <h2 data-t="mode.h">Getting there</h2>
-          <div class="seg" id="mode">
-            <div class="on" data-m="foot"><b data-t="mode.foot">On foot</b><small data-t="mode.foots">the whole way</small></div>
-            <div data-m="bus"><b data-t="mode.bus">Bus or rail</b><small data-t="mode.buss">walk to a stop</small></div>
+          <h2 id="mode-h" data-t="mode.h">Getting there</h2>
+          <div class="seg" id="mode" role="radiogroup" aria-labelledby="mode-h">
+            <div class="on" data-m="foot" role="radio" tabindex="0" aria-checked="true"><b data-t="mode.foot">On foot</b><small data-t="mode.foots">the whole way</small></div>
+            <div data-m="bus" role="radio" tabindex="0" aria-checked="false"><b data-t="mode.bus">Bus or rail</b><small data-t="mode.buss">walk to a stop</small></div>
           </div>
           <p class="note" id="mode-note" data-t="mode.note">Riding covers distance without putting
              you on the street, so a bus trip usually carries less exposure even
@@ -917,8 +918,8 @@
         <p class="note" id="example-note" style="display:none"></p>
 
         <div class="sec" id="r-cards" style="display:none">
-          <h2 data-t="cards.h">Three options</h2>
-          <div class="cards" id="cards"></div>
+          <h2 id="cards-h" data-t="cards.h">Three options</h2>
+          <div class="cards" id="cards" role="radiogroup" aria-labelledby="cards-h"></div>
           <p class="note" data-t="cards.note">Exposure is the average risk of the blocks you walk,
              scored from 0 to 100 against every block in Los Angeles at that
              hour. Lower is calmer.</p>
@@ -968,16 +969,16 @@
         </div>
 
         <div class="sec">
-          <h2 data-t="layers.h">Map layers</h2>
-          <div class="seg">
-            <div class="on" id="t-risk" data-t="layers.risk">Risk</div>
-            <div id="t-schools" data-t="layers.schools">Schools</div>
+          <h2 id="layers-h" data-t="layers.h">Map layers</h2>
+          <div class="seg" role="group" aria-labelledby="layers-h">
+            <div class="on" id="t-risk" data-t="layers.risk" role="button" tabindex="0" aria-pressed="true">Risk</div>
+            <div id="t-schools" data-t="layers.schools" role="button" tabindex="0" aria-pressed="false">Schools</div>
           </div>
         </div>
       </div>
 
       <!-- ====================================================== SCHOOL -->
-      <div class="pane" id="p-school">
+      <div class="pane" id="p-school" role="tabpanel">
         <div class="sec">
           <h2 data-t="rc.h">School report</h2>
           <p class="prose" data-t="rc.p">A single route only tells one student what to do.
@@ -1019,7 +1020,7 @@
       </div>
 
       <!-- ====================================================== METHOD -->
-      <div class="pane" id="p-method">
+      <div class="pane" id="p-method" role="tabpanel">
         <div class="sec">
           <h2 data-t="m.problem.h">The problem</h2>
           <div class="figure">
@@ -1240,7 +1241,7 @@
 
   <div id="mapwrap">
     <div id="map"></div>
-    <div class="toast" id="toast"></div>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
     <div id="hint" data-t="hint">Zoom in to see how individual blocks score</div>
     <div id="legend">
       <h4><span data-t="lg.h">Block risk</span> / <b id="lg-when">afternoon</b></h4>

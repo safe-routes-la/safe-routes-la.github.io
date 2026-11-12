@@ -1197,7 +1197,7 @@ function renderCards() {
     const cut = refExp > 0 ? Math.round((1 - o.exposure / refExp) * 100) : 0;
     const sub = (o === ref || cut <= 0) ? optHint(o) : t('card.less', { cut });
     const intensity = optWalk(o) > 0 ? o.exposure / optWalk(o) : 0;
-    return `<div class="rc${i === S.pick ? ' on' : ''}" data-i="${i}">
+    return `<div class="rc${i === S.pick ? ' on' : ''}" data-i="${i}" role="radio" tabindex="0" aria-checked="${i === S.pick}">
       <span class="swatch" style="background:${bandColor(intensity)}"></span>
       <span class="who"><b>${optLabel(o)}</b><small>${sub}</small></span>
       <span class="num"><b>${t('card.min', { n: Math.max(1, Math.round(optTime(o))) })}</b><small>${t('card.sub', { d: fmtM(optWalk(o)), e: expUnits(o).toFixed(1) })}</small></span>
@@ -1886,6 +1886,29 @@ function showTab(p) {
 document.querySelector('.tabs').addEventListener('click', e => {
   const t = e.target.closest('.tab'); if (!t) return;
   showTab(t.dataset.p);
+});
+
+/* Keyboard. The tabs, the time and mode switches, the route cards, the layer
+ * toggles and the language switch are styled divs and spans with click
+ * handlers, so the markup gives them a role and a tabindex, Enter and Space
+ * press them here, and their ARIA state follows the `on` class that every
+ * handler already sets. */
+const ARIA_STATE = { tab: 'aria-selected', radio: 'aria-checked', button: 'aria-pressed' };
+const syncAria = el => {
+  const a = ARIA_STATE[el.getAttribute('role')];
+  if (a && !el.matches('button')) el.setAttribute(a, String(el.classList.contains('on')));
+};
+new MutationObserver(list => {
+  for (const m of list) if (m.type === 'attributes') syncAria(m.target);
+}).observe($('side'), { subtree: true, attributes: true, attributeFilter: ['class'] });
+$('side').querySelectorAll('[role]').forEach(syncAria);
+
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  const el = e.target.closest?.('[role="tab"], [role="radio"], [role="button"]');
+  if (!el || el.matches('button, a, input, textarea, summary')) return;
+  e.preventDefault();
+  el.click();
 });
 
 $('when').addEventListener('click', e => {
