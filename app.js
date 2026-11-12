@@ -148,6 +148,7 @@ const EN = {
   'net.off': '<b>Offline.</b> Routes still work; the map shows streets without labels.',
 
   'boot.build': 'Building the routing graph',
+  'boot.mb': '{got} of {total} MB',
   'boot.fail': 'The data files did not load.',
 
   'pc.k': 'Walking card / WalkHome LA',
@@ -2294,7 +2295,7 @@ async function boot() {
   const graph = fetchGraph((pct, got, total) => {
     $('boot-bar').style.width = `${(pct * 100).toFixed(0)}%`;
     $('boot-sub').textContent =
-      `${(got / 1e6).toFixed(1)} of ${(total / 1e6).toFixed(1)} MB`;
+      t('boot.mb', { got: (got / 1e6).toFixed(1), total: (total / 1e6).toFixed(1) });
   });
   graph.catch(() => { /* reported by the await below */ });
 
