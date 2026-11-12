@@ -139,7 +139,6 @@ const EN = {
   'net.off': '<b>Offline.</b> Routes still work; the map shows streets without labels.',
 
   'boot.build': 'Building the routing graph',
-  'boot.sub': '{n} incidents / {km} km of street',
   'boot.fail': 'The data files did not load.',
 
   'pc.k': 'Walking card / WalkHome LA',
@@ -2148,6 +2147,16 @@ function windowForNow() {
 }
 
 async function boot() {
+  // The graph is 5 MB and everything else is small, so its download starts
+  // first rather than waiting behind the four JSON files. index.html also
+  // preloads it, so it is usually in flight before this script has run.
+  const graph = fetchGraph((pct, got, total) => {
+    $('boot-bar').style.width = `${(pct * 100).toFixed(0)}%`;
+    $('boot-sub').textContent =
+      `${(got / 1e6).toFixed(1)} of ${(total / 1e6).toFixed(1)} MB`;
+  });
+  graph.catch(() => { /* reported by the await below */ });
+
   const [meta, schools, names, transit] = await Promise.all([
     fetch('data/graph_meta.json').then(r => r.json()),
     fetch('data/schools.json').then(r => r.json()),
@@ -2162,17 +2171,10 @@ async function boot() {
     const bus = document.querySelector('#mode div[data-m="bus"]');
     if (bus) { bus.style.display = 'none'; }
   }
-  $('boot-sub').textContent =
-    t('boot.sub', { n: meta.crimes.toLocaleString(), km: meta.km.toLocaleString() });
-
   $('lg-scale').innerHTML =
     BANDS.map(b => `<i style="background:${b.hex}"></i>`).join('');
 
-  const buf = await fetchGraph((pct, got, total) => {
-    $('boot-bar').style.width = `${(pct * 100).toFixed(0)}%`;
-    $('boot-sub').textContent =
-      `${(got / 1e6).toFixed(1)} of ${(total / 1e6).toFixed(1)} MB`;
-  });
+  const buf = await graph;
 
   $('boot-msg').textContent = t('boot.build');
   $('boot-bar').style.width = '100%';
