@@ -90,7 +90,9 @@ const EN = {
 
   'why.same': 'The shortest way here is also the calmest one the model can find, so '
     + 'there is nothing to trade off.',
-  'why.skips': 'Skips <b>{len}</b> of <span class="st">{st}</span>, which scores <b>{n}</b> at this hour.',
+  'why.isshort': 'This is the shortest way, the one a map app would give you. By contrast, <b>{opt}</b>',
+  'why.walkref': 'This walks the whole way, for comparison. <b>{opt}</b> has <b>{cut}%</b> less exposure.',
+  'why.skips':'Skips <b>{len}</b> of <span class="st">{st}</span>, which scores <b>{n}</b> at this hour.',
   'why.along': 'Goes along <span class="st">{st}</span> instead, at <b>{n}</b>.',
   'why.samelen': 'It comes out the same length.',
   'why.costm': 'Costs you <b>{m} m</b>, under a minute of walking.',
@@ -1297,11 +1299,29 @@ function renderWhy(o) {
     if (walkRef) bits.push(cut > 2 ? t('why.t.drops', { cut }) : t('why.t.flat'));
     el.className = 'because' + (cut <= 2 ? ' flat' : '');
     el.innerHTML = bits.join(' ');
+  } else if (o.labelKey === 'opt.walk') {
+    // The walk-only card under the bus options is there for comparison.
+    // Explaining it against itself used to say "the shortest way here is also
+    // the calmest", which the cards above it contradict.
+    const best = S.routes.find(x => x.kind === 'transit');
+    const cut = best && o.exposure > 0 ? Math.round((1 - best.exposure / o.exposure) * 100) : 0;
+    el.className = 'because flat';
+    el.innerHTML = best && cut > 2 ? t('why.walkref', { opt: optLabel(best), cut }) : t('why.t.flat');
   } else {
-    const base = (S.routes.find(isShortest) || o).r;
-    const ex = explain(o.r, base, S.bucket);
-    el.className = 'because' + (ex.flat ? ' flat' : '');
-    el.innerHTML = ex.html;
+    const short = S.routes.find(isShortest) || o;
+    const safest = S.routes[S.routes.length - 1];
+    if (o === short && safest !== o) {
+      // Picking Shortest is a choice against the other cards, so say what
+      // they offer instead of comparing the route with itself.
+      const ex = explain(safest.r, o.r, S.bucket);
+      el.className = 'because flat';
+      el.innerHTML = `${t('why.isshort', { opt: optLabel(safest) })} `
+        + ex.html.charAt(0).toLowerCase() + ex.html.slice(1);
+    } else {
+      const ex = explain(o.r, short.r, S.bucket);
+      el.className = 'because' + (ex.flat ? ' flat' : '');
+      el.innerHTML = ex.html;
+    }
   }
   $('r-because').style.display = '';
 }

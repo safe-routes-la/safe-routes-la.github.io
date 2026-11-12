@@ -178,6 +178,8 @@ window.LANGS.es = {
     'card.sub': '{d} a pie<br>exposición {e}',
 
     'why.same': 'El camino más corto aquí es también el más tranquilo que el modelo encuentra, así que no hay nada que intercambiar.',
+    'why.isshort': 'Este es el camino más corto, el que te daría una app de mapas. En cambio, <b>{opt}</b>',
+    'why.walkref': 'Esta opción camina todo el trayecto, para comparar. <b>{opt}</b> tiene <b>{cut}%</b> menos exposición.',
     'why.skips': 'Evita <b>{len}</b> de <span class="st">{st}</span>, que califica <b>{n}</b> a esta hora.',
     'why.along': 'Va por <span class="st">{st}</span> en su lugar, con <b>{n}</b>.',
     'why.samelen': 'Sale con la misma longitud.',
