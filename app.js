@@ -1121,13 +1121,15 @@ function compute(fit = true) {
   $('intro').style.display = 'none';
   $('clear-wrap').style.display = '';
   renderCards();
-  select(S.pick, fit);
   // On a phone the results sit below the fold of the sidebar; bring them up
-  // when a trip is first planned, not on every window or mode change.
+  // when a trip is first planned, not on every window or mode change. The
+  // sheet goes up before select() fits the map, so the fit can leave room
+  // for it.
+  if (fit) window.srsSheet?.atLeast('half');
+  select(S.pick, fit);
   if (fit) {
     // On a phone the sheet is only peeking, so scrolling inside it would move
-    // content the visitor cannot see yet. Raise it first.
-    window.srsSheet?.atLeast('half');
+    // content the visitor cannot see yet, which is why it was raised above.
     const panes = document.querySelector('.panes');
     // When the trip is the example we planned on the visitor's behalf, the
     // line saying so sits just above the cards: land on that instead, or the
@@ -1367,10 +1369,23 @@ function select(i, fit = true) {
   renderHandoff(o);
 
   writeUrl();
-  if (fit) {
-    map.fitBounds(L.featureGroup(routeLayer.getLayers()).getBounds().pad(0.16),
-                  { animate: false });
+  if (fit) fitVisible(L.featureGroup(routeLayer.getLayers()).getBounds());
+}
+
+/* The panel (desktop) and the sheet (phone) float over the map, so a route
+ * fitted to the whole map can land underneath them: on a phone the half-height
+ * sheet covered most of the opening example. Fit to the part of the map that
+ * is actually showing instead. */
+function fitVisible(bounds) {
+  const opts = { animate: false };
+  if (window.srsSheet?.isPhone()) {
+    opts.paddingTopLeft = [24, 24];
+    opts.paddingBottomRight = [24, window.srsSheet.height() + 24];
+  } else {
+    opts.paddingTopLeft = [$('side').getBoundingClientRect().right + 40, 40];
+    opts.paddingBottomRight = [40, 40];
   }
+  map.fitBounds(bounds, opts);
 }
 
 /* ------------------------------------------------- hand-off to a map app */
@@ -1533,8 +1548,7 @@ function report(school) {
   S.report = { school, rows, bucket: S.bucket };
   drawReport();
   renderReport();
-  map.fitBounds(L.featureGroup(spokeLayer.getLayers()).getBounds().pad(0.08),
-                { animate: false });
+  fitVisible(L.featureGroup(spokeLayer.getLayers()).getBounds());
 }
 
 /* The report's sixteen approaches replace the trip on the map while the
@@ -2335,7 +2349,11 @@ booted.catch(err => {
     if (!phone.matches) return;
     if (STOPS.indexOf(s) > STOPS.indexOf(at)) setState(s);
   };
-  window.srsSheet = { atLeast, setState, isPhone: () => phone.matches };
+  // How much of the map the sheet covers, for fitting a route above it. A
+  // full sheet leaves too little map to fit into, so fit as if it were at
+  // half, which is where it sits once the visitor lowers it to look.
+  const height = () => heights()[at === 'full' ? 'half' : at];
+  window.srsSheet = { atLeast, setState, height, isPhone: () => phone.matches };
 
   grip.addEventListener('pointerdown', e => {
     if (!phone.matches) return;
