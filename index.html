@@ -6,6 +6,9 @@
 <title>Safe Routes to School / Los Angeles</title>
 <meta name="theme-color" content="#f7f8fa">
 <link rel="manifest" href="manifest.webmanifest">
+<!-- The 5 MB scored graph is the slowest thing on the page, so its download
+     starts here instead of after leaflet.js and app.js have loaded. -->
+<link rel="preload" href="data/graph.bin.gz" as="fetch" crossorigin>
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icon-192.png">
 <meta name="description" content="Walking directions for Los Angeles students built from 85,634 real violent-crime records, so the route accounts for where students actually get hurt and not just which way is shortest.">

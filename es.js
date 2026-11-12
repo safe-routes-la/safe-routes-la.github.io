@@ -223,7 +223,6 @@ window.LANGS.es = {
     'net.off': '<b>Sin conexión.</b> Las rutas siguen funcionando; el mapa muestra las calles sin nombres.',
 
     'boot.build': 'Construyendo el grafo de rutas',
-    'boot.sub': '{n} incidentes / {km} km de calles',
     'boot.fail': 'Los archivos de datos no cargaron.',
 
     'pc.k': 'Tarjeta para caminar / WalkHome LA',
