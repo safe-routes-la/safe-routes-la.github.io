@@ -137,7 +137,7 @@ const EN = {
     + 'same exposure as the calmest approach, from the <b>{best}</b>.',
   'rc.tail': 'That is where a crossing guard, a lighting request or a walking group would do the most good.',
 
-  'when.now': 'It is {clock}, so {win} is selected. Change it to plan a different walk.',
+  'when.now': 'It is {clock} in Los Angeles, so {win} is selected. Change it to plan a different walk.',
   'when.restored': 'Restored from a shared link.',
   'preset': 'This page is set up for <b>{school}</b>. Type where you start. '
     + '<a href="{href}">Not your school?</a>',
@@ -251,6 +251,7 @@ function applyLang() {
   renderEmbed();
   window.srsTourRelabel?.();
   renderNet();
+  renderWhenNote();
   if (S.routes) { renderCards(); select(S.pick, false); }
   if (S.report) renderReport();
 }
@@ -2254,8 +2255,33 @@ async function fetchGraph(onPct) {
   return res.arrayBuffer();
 }
 
+/* The hour in Los Angeles, not on the device. For a student there they are
+ * the same; for anyone looking from elsewhere the device hour picked the
+ * wrong window (3 AM in India is early afternoon in Los Angeles). */
+const LA_TZ = 'America/Los_Angeles';
+function laHour() {
+  try {
+    return +new Intl.DateTimeFormat('en-US', { timeZone: LA_TZ, hour: 'numeric', hourCycle: 'h23' })
+      .format(new Date()) % 24;
+  } catch (e) { return new Date().getHours(); }
+}
+function laClock() {
+  const opts = { hour: 'numeric', minute: '2-digit', timeZone: LA_TZ };
+  const loc = S.lang === 'es' ? 'es-US' : 'en-US';
+  try { return new Date().toLocaleTimeString(loc, opts); }
+  catch (e) { delete opts.timeZone; return new Date().toLocaleTimeString(loc, opts); }
+}
+
+/* Rebuilt on every language switch, so the window's name is translated too
+ * (it used to be stored in English and read "la evening" in Spanish). */
+function renderWhenNote() {
+  const el = $('when-note');
+  if (S.whenNote === 'restored') el.innerHTML = t('when.restored');
+  else if (S.whenNote === 'now') el.innerHTML = t('when.now', { clock: laClock(), win: winName(windowForNow()) });
+}
+
 function windowForNow() {
-  const h = new Date().getHours();
+  const h = laHour();
   if (h >= 5 && h < 10) return 0;
   if (h >= 10 && h < 17) return 1;
   return 2;
@@ -2323,14 +2349,9 @@ async function boot() {
 
   const now = windowForNow();
   const restored = readUrl();
-  if (!restored) {
-    setWindow(now, false);
-    const clock = new Date().toLocaleTimeString(S.lang === 'es' ? 'es-US' : 'en-US',
-      { hour: 'numeric', minute: '2-digit' });
-    setDyn($('when-note'), 'when.now', { clock, win: winName(now) });
-  } else {
-    setDyn($('when-note'), 'when.restored');
-  }
+  if (!restored) setWindow(now, false);
+  S.whenNote = restored ? 'restored' : 'now';
+  renderWhenNote();
   if (S.preset && !restored) {
     map.setView([S.preset.lat, S.preset.lon], 15);
     redrawPins();

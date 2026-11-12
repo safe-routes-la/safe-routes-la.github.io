@@ -220,7 +220,7 @@ window.LANGS.es = {
     'rc.same': 'Llegar a {school} desde el <b>{worst}</b> significa más o menos la misma exposición que el acceso más tranquilo, desde el <b>{best}</b>.',
     'rc.tail': 'Ahí es donde un guardia de cruce, una solicitud de alumbrado o un grupo de caminata harían más bien.',
 
-    'when.now': 'Son las {clock}, así que está seleccionada la {win}. Cámbiala para planear otra caminata.',
+    'when.now': 'En Los Ángeles son las {clock}, así que está seleccionada la {win}. Cámbiala para planear otra caminata.',
     'when.restored': 'Restaurado desde un enlace compartido.',
     'preset': 'Esta página está preparada para <b>{school}</b>. Escribe de dónde sales. <a href="{href}">¿No es tu escuela?</a>',
     'share.done': 'Enlace copiado',
