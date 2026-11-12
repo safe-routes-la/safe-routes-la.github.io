@@ -28,7 +28,12 @@ const NEVER = /arcgisonline\.com|openstreetmap\.org|komoot\.io|fonts\.g|github\.
 self.addEventListener('install', e => {
   e.waitUntil((async () => {
     const c = await caches.open(VERSION);
-    await c.addAll([...SHELL, ...DATA]);
+    // Data is versioned by VERSION, so when a new sw.js keeps the same
+    // VERSION the graph already on the device is still the right one. Fetch
+    // only what is missing, rather than 5 MB again on every deploy.
+    const missing = [];
+    for (const f of DATA) if (!(await c.match(f))) missing.push(f);
+    await c.addAll([...SHELL, ...missing]);
     await self.skipWaiting();
   })());
 });
