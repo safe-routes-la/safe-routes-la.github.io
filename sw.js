@@ -20,7 +20,10 @@ const DATA = [
   'data/graph_meta.json', 'data/schools.json', 'data/street_names.json',
   'data/transit.json', 'data/graph.bin.gz',
 ];
-const NEVER = /arcgisonline\.com|openstreetmap\.org|fonts\.g|github\.com/;
+// Third-party services that are never stored: map tiles (Esri, OpenStreetMap),
+// address lookups (Nominatim, Photon), fonts and GitHub. Lookups are answers to
+// one person's typing, and keeping each one would grow the cache without end.
+const NEVER = /arcgisonline\.com|openstreetmap\.org|komoot\.io|fonts\.g|github\.com/;
 
 self.addEventListener('install', e => {
   e.waitUntil((async () => {
