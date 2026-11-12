@@ -85,7 +85,7 @@ const EN = {
 
   'card.less': '{cut}% less exposure',
   'card.min': '{n} min',
-  'card.sub': '{d} walk / {e}',
+  'card.sub': '{d} walk<br>exposure {e}',
 
   'why.same': 'The shortest way here is also the calmest one the model can find, so '
     + 'there is nothing to trade off.',
@@ -149,8 +149,9 @@ const EN = {
   'pc.opt': 'Option', 'pc.time': 'Time', 'pc.walk': 'On foot', 'pc.exp': 'Exposure',
   'pc.turns': 'Street by street', 'pc.hours': 'Same route, different hour',
   'pc.open': 'Open this trip on a phone',
-  'pc.foot': 'Scores run 0 to 100 against every block in Los Angeles at that hour; lower is '
-    + 'calmer. This is a second opinion about a walk, not a guarantee. Data: LAPD 2020 to '
+  'pc.foot': 'Block scores run 0 to 100 against every block in Los Angeles at that hour. '
+    + 'Exposure adds them up along the route: 100 m on a block that scores 50 adds 0.5. Lower '
+    + 'is calmer. This is a second opinion about a walk, not a guarantee. Data: LAPD 2020 to '
     + '2024, LA Metro, OpenStreetMap.',
   'pc.printed': 'Printed {date}',
   'intro.example': 'This is an example walk to <b>{school}</b>, scored for the '
