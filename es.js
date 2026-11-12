@@ -46,7 +46,6 @@ window.LANGS.es = {
 
     'go': 'Comparar rutas',
 
-    'cards.h': 'Tres opciones',
     'cards.note': 'Cada cuadra recibe de 0 a 100 frente a todas las cuadras de Los Ángeles a esa hora. La exposición suma esas puntuaciones a lo largo de la caminata: 100 m en una cuadra con 50 suman 0.5. Menos es más tranquilo.',
     'why.h': 'Por qué esta ruta',
     'hours.h': 'Misma ruta, <b>otra hora</b>',
@@ -176,6 +175,8 @@ window.LANGS.es = {
     'opt.rideH': '{n} min a bordo, {d} a pie',
     'opt.change': ', un cambio',
 
+    'cards.n1': 'Una opción', 'cards.n2': 'Dos opciones', 'cards.n3': 'Tres opciones',
+    'cards.n4': 'Cuatro opciones',
     'card.less': '{cut}% menos exposición',
     'card.min': '{n} min',
     'card.sub': '{d} a pie<br>exposición {e}',

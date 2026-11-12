@@ -86,6 +86,8 @@ const EN = {
   'opt.rideH': '{n} min riding, {d} on foot',
   'opt.change': ', one change',
 
+  'cards.n1': 'One option', 'cards.n2': 'Two options', 'cards.n3': 'Three options',
+  'cards.n4': 'Four options',
   'card.less': '{cut}% less exposure',
   'card.min': '{n} min',
   'card.sub': '{d} walk<br>exposure {e}',
@@ -1215,6 +1217,9 @@ function renderCards() {
       <span class="num"><b>${t('card.min', { n: Math.max(1, Math.round(optTime(o))) })}</b><small>${t('card.sub', { d: fmtM(optWalk(o)), e: expUnits(o).toFixed(1) })}</small></span>
     </div>`;
   }).join('');
+  // Foot mode drops options that add nothing, and bus mode adds the walk, so
+  // the heading counts what is actually there.
+  setDyn($('cards-h'), `cards.n${Math.min(4, S.routes.length)}`);
   $('r-cards').style.display = '';
 }
 
