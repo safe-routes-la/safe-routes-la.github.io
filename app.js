@@ -59,7 +59,9 @@ const EN = {
   'toast.rcnone': 'Could not reach that school from any direction.',
   'toast.copyfail': 'Copy failed. The address bar holds the link.',
   'toast.print': 'Pick a route first.',
-  'ac.none': 'Nothing found for that',
+  'ac.none': 'Nothing found in the map area, which covers central Los Angeles. Try two cross '
+    + 'streets, like Hauser &amp; Venice, or click the map.',
+  'ac.noschool': 'No public school by that name in the map area, which covers central Los Angeles.',
   'ac.busy': 'Searching…',
   'ac.offline': 'Offline: addresses cannot be looked up. Type two cross streets, or tap the map.',
   'ac.xstreet': 'cross streets',
@@ -1639,13 +1641,13 @@ function attachAC(inputId, listId, search, onPick, opts = {}) {
         items = (await search(q, ctl.signal)) || [];
       } catch (e) {
         if (e.name === 'AbortError') return;
-        note('none', e.offline ? t('ac.offline') : t('ac.none'));
+        note('none', e.offline ? t('ac.offline') : t(opts.none || 'ac.none'));
         return;
       } finally {
         if (inflight === ctl) inflight = null;
       }
       if (ctl.signal.aborted) return;
-      if (!items.length) { note('none', t('ac.none')); return; }
+      if (!items.length) { note('none', t(opts.none || 'ac.none')); return; }
       sel = -1; render();
     }, opts.remote ? 420 : 200);
   });
@@ -2276,7 +2278,7 @@ async function boot() {
     redrawPins();
     $('go').disabled = !S.origin;
     if (S.origin) compute(); else map.setView([it.school.lat, it.school.lon], 15);
-  });
+  }, { none: 'ac.noschool' });
 
   attachAC('origin', 'ac-origin', searchPlaces, it => {
     S.origin = { lat: it.lat, lon: it.lon };
@@ -2291,7 +2293,7 @@ async function boot() {
     $('rc-school').value = it.school.name;
     $('rc-run').disabled = false;
     renderEmbed();
-  });
+  }, { none: 'ac.noschool' });
 
   const now = windowForNow();
   const restored = readUrl();
