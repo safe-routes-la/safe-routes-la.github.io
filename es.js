@@ -146,7 +146,7 @@ window.LANGS.es = {
     'toast.nostreet': 'No hay una calle transitable cerca de ese punto.',
     'toast.same': 'Ese punto de salida ya está en la escuela.',
     'toast.noroute': 'Ninguna ruta a pie conecta esos puntos.',
-    'toast.nobus': 'Ningún autobús o tren conecta esos puntos en un solo viaje. Mostrando la caminata.',
+    'toast.nobus': 'Ningún viaje en autobús o tren con un cambio o menos conecta esos puntos. Mostrando la caminata.',
     'toast.rcnostreet': 'Esa escuela no está cerca de una calle transitable.',
     'toast.rcnone': 'No se pudo llegar a esa escuela desde ninguna dirección.',
     'toast.copyfail': 'No se pudo copiar. La barra de direcciones tiene el enlace.',
@@ -161,7 +161,7 @@ window.LANGS.es = {
     'toast.geoout': 'Estás fuera del área del mapa, que cubre el centro de Los Ángeles.',
     'toast.geofail': 'No se pudo obtener tu ubicación. Revisa el permiso del navegador.',
 
-    'mode.none': 'Nada a menos de 900 m a pie de ambos extremos comparte una ruta, así que estas son opciones a pie. Los transbordos quedan fuera: cada cambio añade otra espera.',
+    'mode.none': 'Ningún viaje en autobús o tren con un cambio o menos sale a menos de 900 m a pie de aquí y llega a menos de 900 m de la escuela, así que estas son opciones a pie. Un segundo cambio añadiría otra espera.',
     'mode.found': 'Ir en autobús cubre distancia sin ponerte en la calle. Esperar no, así que un minuto en una parada se cobra como {w} m de caminata en ese lugar.',
 
     'opt.short': 'Más corta', 'opt.shortH': 'lo que te da una app de mapas',

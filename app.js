@@ -54,7 +54,7 @@ const EN = {
   'toast.nostreet': 'No walkable street near that point.',
   'toast.same': 'That start point is already at the school.',
   'toast.noroute': 'No walking route connects those points.',
-  'toast.nobus': 'No single bus or rail ride links those points. Showing the walk.',
+  'toast.nobus': 'No bus or rail trip with one change or fewer links those points. Showing the walk.',
   'toast.rcnostreet': 'That school is not near a walkable street.',
   'toast.rcnone': 'Could not reach that school from any direction.',
   'toast.copyfail': 'Copy failed. The address bar holds the link.',
@@ -69,8 +69,9 @@ const EN = {
   'toast.geoout': 'You are outside the map area, which covers central Los Angeles.',
   'toast.geofail': 'Could not get your location. Check the browser permission.',
 
-  'mode.none': 'Nothing within a 900 m walk of both ends shares one route, so these are '
-    + 'walking options. Transfers are out of scope: each change adds another wait to stand through.',
+  'mode.none': 'No bus or rail trip with one change or fewer starts within a 900 m walk of '
+    + 'here and ends within 900 m of the school, so these are walking options. A second change '
+    + 'would add another wait to stand through.',
   'mode.found': 'Riding covers distance without putting you on the street. Waiting does '
     + 'not, so a minute at a stop is charged like {w} m of walking there.',
 

@@ -79,23 +79,29 @@ The bus changes the problem rather than just the route. Minutes on board are
 minutes off the street, so for longer trips the calmest option is usually not a
 walking route at all.
 
-Switch to bus and rail and the app finds single-ride itineraries: walk to a
-stop, wait, ride, walk the rest. A real trip from south of USC up to LACES:
+Switch to bus and rail and the app finds itineraries with at most one change:
+walk to a stop, wait, ride, change if needed, walk the rest. One real trip, from
+Exposition & Normandie up to LACES in the evening window:
 
 | | Time | On foot | Exposure |
 |---|---|---|---|
-| Walking the whole way | 118 min | 9.34 km | 22.8 |
-| Route 35/38 | 43 min | 1.98 km | 8.1 |
+| Walking the whole way | 118 min | 9.34 km | 22.9 |
+| Route 206, then Route 33 | 40 min | 726 m | 4.6 |
 
-Faster and 65% less exposure, because only 1.98 km of it happens on a sidewalk.
+On this trip the bus cuts modeled exposure by 80% and saves 78 minutes, because
+only 726 m of it happens on a sidewalk. That figure is for this one trip; the
+app works out the comparison for every trip it plans.
 
 Waiting is treated honestly. Standing at a stop is exposure without progress, so
 a minute of waiting is charged like 80 m of walking on that block, which is
 above walking pace on purpose. A stop on a bad corner is not a safe place to
 spend eight minutes, and the model should not pretend otherwise.
 
-Transfers are out of scope. A student changing buses twice to shave exposure is
-advice nobody follows, and every extra leg adds another wait to stand through.
+One change at most. A student changing buses twice to shave exposure is advice
+nobody follows, and every extra leg adds another wait to stand through. The
+change itself is charged too: the second wait at the score of its stop, and
+the walk between the two stops (260 m at most) at the score of the block it
+starts on.
 
 ## How it works
 
