@@ -1895,10 +1895,13 @@ function readUrl() {
     S.mode = m;
     [...$('mode').children].forEach(c => c.classList.toggle('on', c.dataset.m === m));
   }
-  const w = +p.get('when');
-  if (w >= 0 && w <= 2) setWindow(w, false);
-  const k = +p.get('pick');
-  if (k >= 0 && k <= 2) S.pick = k;
+  // Only what the link actually carries: +null is 0, which would turn a
+  // missing value into "morning" and "Shortest". Bus mode shows up to four
+  // cards (three rides and the walk), so pick goes up to 3.
+  const w = p.has('when') ? +p.get('when') : NaN;
+  setWindow(w >= 0 && w <= 2 ? w : windowForNow(), false);
+  const k = p.has('pick') ? +p.get('pick') : NaN;
+  if (Number.isInteger(k) && k >= 0 && k <= 3) S.pick = k;
   return true;
 }
 
