@@ -1,5 +1,47 @@
 # Changelog
 
+## Fixes from a full pass over the live site (November 2026)
+
+Every flow was driven in headless Chrome: the opening example, typed and
+far-away trips, addresses it cannot find, each time window, Spanish, the
+offline copy with the server stopped, 375 px phones, keyboard only, and a
+10 Mbps first load. What was wrong, and what changed:
+
+- **Typed text was ignored by "Compare routes".** Typing an address and
+  pressing the button, without choosing a suggestion, re-ran the previous
+  trip. The button, and Enter, now take the first match.
+- **"Why this route" on the Shortest card** said the shortest way was also
+  the calmest while Safest showed 50% less exposure. It now says what
+  Safest does instead. The walk-only card in bus mode is explained as the
+  comparison it is.
+- **The exposure note contradicted the number.** It called exposure an
+  average from 0 to 100; the card shows a total over the walk. The note now
+  says what is added up, and each card labels the figure.
+- **Bus trips with a change** were scored one way on the card and another
+  in "Same route, different hour", and every stop showed the first stop's
+  score.
+- **Keyboard.** Tabs, the time and mode switches, the route cards, the map
+  layers and EN/ES could not be reached with Tab. They can now, with ARIA
+  state.
+- **Phones.** Routes were fitted to the whole map and then mostly hidden
+  under the bottom sheet; on a desktop they could fall under the panel.
+- **Time zone.** The window for "now" came from the device clock, so a
+  visitor outside Los Angeles got the wrong one. It uses Los Angeles time.
+- **Smaller things.** The walkthrough no longer opens over the loading
+  screen on slower connections; the graph download starts with the page;
+  the School tab no longer leaves the map empty when you go back; shared
+  links reopen on the card and hour they were shared with; not-found
+  messages say the map covers central Los Angeles; geocoder names are
+  escaped; Photon lookups stay out of the offline cache and a new sw.js no
+  longer downloads the graph again; the remaining English strings in
+  Spanish mode are translated; the results heading counts the cards; text
+  about transfers says one change is planned, not none; walks over 3 km
+  point to bus and rail.
+- **CI** now checks that the scripts parse and that every string has a
+  Spanish version (`tools/i18n_check.mjs`).
+
+The data, the risk model and the routes it returns are unchanged.
+
 ## Dark theme, a first run, and handing the route to a map app (September 2026)
 
 - **New theme.** The warm cream ground is gone. A quiet block on a near-black
