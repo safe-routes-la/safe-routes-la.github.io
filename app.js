@@ -2239,7 +2239,10 @@ async function boot() {
   applyLang();
 })();
 
-boot().catch(err => {
+/* Settles once the graph is decoded and the opening route is on screen.
+ * Anything that points at results (the walkthrough) waits on this. */
+const booted = boot();
+booted.catch(err => {
   $('boot').classList.remove('done');
   $('boot-msg').textContent = t('boot.fail');
   $('boot-sub').textContent = err.message;
@@ -2499,13 +2502,16 @@ boot().catch(err => {
   addEventListener('hashchange', () => { if (location.hash === '#tour' && !open) window.srsTourOpen(); });
 
   // Wait for the opening example to finish so the result steps have something
-  // to point at. shouldOffer() is re-checked after the delay because the tab
-  // can be answered or navigated in the meantime.
-  if (shouldOffer()) setTimeout(() => {
+  // to point at. A fixed delay from page load was not enough: on a 10 Mbps
+  // connection the 5 MB graph is still downloading when it fires, so the
+  // offer opened over the loading screen and dropped the three result steps.
+  // shouldOffer() is re-checked after the delay because the tab can be
+  // answered or navigated in the meantime.
+  if (shouldOffer()) booted.then(() => setTimeout(() => {
     if (!shouldOffer() || open) return;
     markSession();
     start(true, forced());
-  }, 1400);
+  }, 900), () => { /* the failure screen needs no tour */ });
 })();
 
 $('help').addEventListener('click', () => window.srsTourOpen?.());
