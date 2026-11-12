@@ -32,7 +32,7 @@ const EN = vm.runInNewContext(`(${enSrc[1]})`);
 // 'win.' + b) are checked through the EN table instead.
 const used = new Set([
   ...[...app.matchAll(/\bt\('([^']+)'\s*[,)]/g)].map(m => m[1]),
-  ...[...app.matchAll(/\bsetDyn\([^,]+,\s*'([^']+)'/g)].map(m => m[1]),
+  ...[...app.matchAll(/\bsetDyn\([^,]+,\s*'([^']+)'\s*[,)]/g)].map(m => m[1]),
   ...[...app.matchAll(/\b(?:labelKey|hintKey|none):\s*'([^']+)'/g)].map(m => m[1]),
 ]);
 
