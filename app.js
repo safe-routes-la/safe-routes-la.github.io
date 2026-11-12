@@ -334,6 +334,10 @@ const schoolLayer = L.layerGroup();
 
 /* ------------------------------------------------------------ utilities */
 const $ = id => document.getElementById(id);
+/* For text that came from outside the page, such as a geocoder's place names,
+ * before it goes into innerHTML. */
+const escHtml = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;');
 const fmtM = m => m < 950 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(2)} km`;
 const fmtMin = m => t('card.min', { n: Math.max(1, Math.round(m / WALK_MPS / 60)) });
 const risk = (ei, b) => S.er[ei * 3 + b] / 255;
@@ -1621,8 +1625,8 @@ function attachAC(inputId, listId, search, onPick, opts = {}) {
   const render = () => {
     if (!items.length) { close(); return; }
     list.innerHTML = items.map((it, i) =>
-      `<div${i === sel ? ' class="sel"' : ''} data-i="${i}">${it.label}`
-      + (it.sub ? `<small>${it.sub}</small>` : '') + '</div>').join('');
+      `<div${i === sel ? ' class="sel"' : ''} data-i="${i}">${escHtml(it.label)}`
+      + (it.sub ? `<small>${escHtml(it.sub)}</small>` : '') + '</div>').join('');
     list.classList.add('on');
   };
 
@@ -1760,7 +1764,7 @@ function crossStreets(q) {
       }
       clusters.sort((x, y) => y.n - x.n);
       const c = clusters[0];
-      out.push({ label: `${S.names[a]} &amp; ${S.names[b]}`, sub: t('ac.xstreet'),
+      out.push({ label: `${S.names[a]} & ${S.names[b]}`, sub: t('ac.xstreet'),
                  lat: c.lat, lon: c.lon, xstreet: true });
       if (out.length >= 6) return out;
     }
@@ -2282,7 +2286,7 @@ async function boot() {
 
   attachAC('origin', 'ac-origin', searchPlaces, it => {
     S.origin = { lat: it.lat, lon: it.lon };
-    $('origin').value = it.label.replace(/&amp;/g, '&');
+    $('origin').value = it.label;
     redrawPins();
     $('go').disabled = !S.school;
     if (S.school) compute(); else map.setView([it.lat, it.lon], 15);
